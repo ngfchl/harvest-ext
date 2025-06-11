@@ -1,0 +1,7 @@
+{
+  "extends": "./.wxt/tsconfig.json",
+  "compilerOptions": {
+    "types": ["@types/chrome"],
+    "typeRoots": ["./node_modules/@types", "./src/types"]
+  }
+}
