@@ -34,9 +34,11 @@ export const useSettingStore = defineStore("setting", () => {
             setting.value = newSetting;
             // 保存到存储
             await storage.setItem("local:setting", newSetting);
+            message.success("服务器信息保存成功！");
             return true;
         } catch (error) {
             console.error("保存设置失败:", error);
+            message.error(`服务器信息保存失败！${error}`);
             return false;
         }
     };

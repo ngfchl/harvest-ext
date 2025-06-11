@@ -22,16 +22,16 @@ const formMaxWidth = computed(() => {
 
 // 保存设置
 const saveSettings = async () => {
-  if (!baseUrl.value.startsWith('https://') && !baseUrl.value.startsWith('http://')) {
+  if (!setting.value.baseUrl.startsWith('https://') && !setting.value.baseUrl.startsWith('http://')) {
     message.warn("服务器地址填写出错了，请以 http:// 或 https:// 开头");
     return;
   }
-  if (!baseUrl.value.endsWith('/')) {
-    baseUrl.value = `${baseUrl.value}/`;
+  if (!setting.value.baseUrl.endsWith('/')) {
+    setting.value.baseUrl = `${setting.value.baseUrl}/`;
   }
-  console.log('保存设置:', {baseUrl: baseUrl.value, token: token.value});
+  console.log('保存设置:', setting.value);
   try {
-    await saveSetting({baseUrl: baseUrl.value, token: token.value})
+    await saveSetting(setting.value)
     console.log('设置保存成功');
   } catch (e) {
     console.error('保存失败:', e);
