@@ -1,4 +1,4 @@
-import {Settings} from "@/types";
+import {CommonResponse, Settings, SiteInfo} from "@/types";
 import {defineStore} from "pinia";
 import {ref} from "vue";
 import {message} from "ant-design-vue";
@@ -58,7 +58,7 @@ export const useSettingStore = defineStore("setting", () => {
      * @param {string} host - 站点域名
      * @returns {Promise<Object|null>} 站点信息对象或null
      */
-    const getSite = async (host: string): Promise<Object | null> => {
+    const getSite = async (host: string): Promise<CommonResponse<SiteInfo | null> | null> => {
         console.log(setting.value.baseUrl);
         const path = "api/auth/monkey/get_site/"
 
@@ -90,24 +90,23 @@ export const useSettingStore = defineStore("setting", () => {
                 const msg = `获取站点信息出错：${res.msg}`;
                 console.warn(msg);
                 message.warning(msg, 10000);
-                return null;
+                return CommonResponse.error(-1, msg)
             }
 
             // 返回完整的站点信息
-            return {
-                mysite: res.data.mysite,
-                website: res.data.website
-            };
+            return CommonResponse.success(res.data as SiteInfo);
         } catch (error) {
-            console.log('服务器连接失败！', error);
-            message.error(`服务器连接失败！${error}`);
-            return null;
+            let msg = `服务器连接失败！${error}`
+            console.log(msg);
+            message.error(msg);
+            return CommonResponse.error(-1, msg)
         }
-    };
+
+    }
 
     const testServer = async () => {
-        let res = await getSite('1ptba.com')
-        if (!res) {
+        const res = await getSite('1ptba.com')
+        if (!res?.succeed) {
             // message.error('服务器连接失败！');
             canSave.value = false;
             return;
