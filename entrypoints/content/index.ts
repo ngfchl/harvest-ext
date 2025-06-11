@@ -2,6 +2,7 @@ import {createApp} from "vue"
 import FloatingWindow from "@/components/FloatingWindow.vue";
 import Antd from 'ant-design-vue';
 import 'ant-design-vue/dist/reset.css';
+import {createPinia} from "pinia";
 
 export default defineContentScript({
     matches: ['*://*/*'],
@@ -23,6 +24,7 @@ export default defineContentScript({
                 // Define how your UI will be mounted inside the container
                 const app = createApp(FloatingWindow);
                 app.use(Antd)
+                app.use(createPinia())
                 app.mount(container);
                 return app;
             },
