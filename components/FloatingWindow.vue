@@ -726,14 +726,16 @@ async function get_torrent_detail() {
  */
 async function getDownloadersList() {
   try {
+    console.log('开始获取下载器列表')
     const res = await getDownloaders()
-    if (res.succeed) {
+    if (!res.succeed) {
       console.log(res.msg);
       return; // 保持与原代码一致的行为
     }
+    downloaders.value = res.data
     console.log('下载器列表获取成功！', res.msg);
     console.log(res);
-    message.success('收割机提醒您：' + res.msg);
+    // message.success('收割机提醒您：' + res.msg);
   } catch (error) {
     console.error('获取下载器列表失败', error);
     throw new Error("获取下载器列表失败");
