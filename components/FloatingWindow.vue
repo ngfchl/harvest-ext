@@ -9,11 +9,26 @@ import {
   SyncOutlined,
   ThunderboltOutlined,
 } from '@ant-design/icons-vue'
+import {useSettingStore} from "@/hooks/use-setting";
+import {storeToRefs} from "pinia";
+import {CommonResponse} from "@/types";
 
+const settingStore = useSettingStore()
+const {
+  setting,
+} = storeToRefs(settingStore)
+const {
+  getSite,
+  sendSiteInfo,
+  getDownloaders,
+  getCookieString,
+  testDownloader,
+  getDownloaderCategorise,
+  pushTorrent,
+  repeatInfo,
+  syncTorrents,
+} = settingStore
 
-const api = ref('')
-// const api = ref('http://127.0.0.1:8080/')
-const token = ref('')
 const drawer = ref(false)
 const repeat_info = ref<RepeatInfo>({
   url_list: [],
@@ -136,73 +151,45 @@ const onMouseUp = () => {
   }
 };
 
-onMounted(() => {
+onMounted(async () => {
+  message.config({
+    getContainer: () => document.querySelector('harvest-ui')?.shadowRoot?.querySelector('#message-container') || document.body,
+  });
+  await getSiteInfo()
   // 在 Shadow DOM 中添加事件监听器
   document.addEventListener("mousemove", onMouseMove);
   document.addEventListener("mouseup", onMouseUp);
-
+  await init_button()
 });
 
 /**
  * 获取站点相关规则
- * @param {string} host - 站点域名
- * @returns {Promise<Object|null>} 站点信息对象或null
+ * @returns
  */
-const getSite = async (host: string): Promise<Object | null> => {
+const getSiteInfo = async () => {
   if (mySiteId.value > 0 && siteInfo.value) {
     return null;
   }
-  console.log(api.value)
-  const path = "api/auth/monkey/get_site/"
+  let host = document.location.host;
 
-  try {
-    // 处理m-team域名特殊规则
-    if (host.includes("m-team")) {
-      host = host.replace("xp.", "api.")
-      host = host.replace("kp.", "api.")
-    }
-    let url = `${api.value}${path}${host}`
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        "Authorization": `Bearer Monkey.${token.value}`,
-        "Content-Type": "application/json",
-      },
-    });
 
-    if (!response.ok) {
-      let msg = `HTTP error! status: ${response.status}`
-      message.warning(msg, 10000);
-      throw new Error(msg);
-    }
+  const res = await getSite(host);
+  console.log(res);
 
-    const res = await response.json();
-    console.log(res);
-
-    if (res.code !== 0) {
-      const msg = `获取站点信息出错：${res.msg}`;
-      console.warn(msg);
-      message.warning(msg, 10000);
-      return null;
-    }
-
-    // 保存到本地存储和响应式变量
-    mySiteId.value = res.data.mysite;
-    siteInfo.value = res.data.website;
-    localStorage.setItem('website', JSON.stringify(res.data.website));
-    localStorage.setItem('mySite', JSON.stringify(res.data.mysite));
-
-    // 返回完整的站点信息
-    return {
-      mysite: res.data.mysite,
-      website: res.data.website
-    };
-  } catch (error) {
-    console.log('服务器连接失败！', error);
-    message.error(`服务器连接失败！${error}`);
+  if (!res?.succeed) {
+    const msg = `获取站点信息出错：${res?.msg}`;
+    console.warn(msg);
+    message.warning(msg, 10000);
     return null;
   }
-};
+
+  // 保存到本地存储和响应式变量
+  mySiteId.value = res.data?.mysite ?? 0;
+  siteInfo.value = res?.data?.website;
+  localStorage.setItem('website', JSON.stringify(res.data?.website));
+  localStorage.setItem('mySite', JSON.stringify(res.data?.mysite));
+
+}
 
 /**
  * 跳转控制面板页面并同步 Cookie
@@ -211,7 +198,7 @@ async function go_to_control_page() {
   console.log('跳转控制面板页面...')
   console.log(siteInfo.value)
   if (!(siteInfo.value)) {
-    await getSite()
+    await getSiteInfo()
   }
   let url = siteInfo.value.page_control_panel
   location.replace(url);
@@ -219,7 +206,7 @@ async function go_to_control_page() {
 
 async function download_to() {
   if (downloaders.value.length <= 0) {
-    await getDownloaders()
+    await getDownloadersList()
   }
   await get_torrent_detail()
   console.log(torrents.value)
@@ -229,7 +216,7 @@ async function download_to() {
   showModal()
 }
 
-const showModal = () => {
+const showModal = async () => {
   if (downloaders.value.length <= 0) {
     message.warning('没有可用的下载器！请先在收割机中添加！')
     return
@@ -242,12 +229,12 @@ const showModal = () => {
   let downloader_id = downloaders.value[0].id
   console.log(activeKey.value)
   activeKey.value = downloader_id
-  getDownloaderCategorise(downloader_id)
+  await getDownloaderCategoryList(downloader_id)
 };
 
 async function download_all() {
   if (downloaders.value.length <= 0) {
-    await getDownloaders()
+    await getDownloadersList()
   }
   await get_torrent_id_list()
   await generate_magnet_url(false)
@@ -262,7 +249,7 @@ const handleOk = (e: MouseEvent) => {
 
 async function download_free() {
   if (downloaders.value.length <= 0) {
-    await getDownloaders()
+    await getDownloadersList()
   }
   await get_torrent_id_list()
   // await get_torrent_list()
@@ -274,41 +261,289 @@ async function download_free() {
 /**
  * 发送站点信息到服务器
  * @param {string} data - 要发送的数据，格式为 URL-encoded 字符串
- * @returns {Promise<Object>} 包含服务器响应的 Promise
+ * @returns
  */
-async function send_site_info(data: string) {
-  const url = `${api.value}api/auth/monkey/save_site`;
-
+async function doSendSiteInfo(data: string) {
   try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer Monkey.${token.value}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: data,
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+    const res = await sendSiteInfo(data)
+    console.log('站点信息获取结果', res);
+    if (!res.succeed) {
+      message.error(res.msg);
+    } else {
+      message.success(res.msg);
     }
 
-    const res = await response.json();
-    console.log(res);
-
-    if (res.code === 0) {
-      console.log(res.msg);
-      return false; // 保持与原代码一致的行为
-    }
-
-    console.log('站点信息获取成功！', res.msg);
-    console.log(res);
-    message.success('收割机提醒您：' + res.msg);
-    return res;
   } catch (error) {
     console.error('站点信息获取失败', error);
-    throw new Error("站点信息获取失败");
+    message.error(`收割机提醒您：站点信息获取失败！${error}`);
   }
+}
+
+async function init_button() {
+  /**
+   * 初始化页面按钮
+   */
+  console.log('开始初始化按钮')
+  if (location.origin === 'https://hdcity.city') {
+    user_detail_page.value = location.pathname.startsWith('/userdetails');
+  } else {
+    user_detail_page.value = true
+  }
+// if (location.pathname.includes(siteInfo.value.page_detail) //尝试与配置文件中的信息绑定
+  if (location.pathname.startsWith('/details.php')
+      || location.pathname.includes('/torrent.php')
+      || location.pathname.includes('/views.php')
+      || location.pathname.includes('/Torrents/details')
+      || location.pathname.search(/torrents\D*\d+/) > 0
+      || location.pathname.search(/t\/\d+/) > 0
+  ) {
+    console.log('当前为种子详情页')
+    if (downloaders.value.length <= 0) {
+      await getDownloadersList()
+    }
+    torrent_detail_page.value = true
+    await get_torrent_detail()
+    // await sync_torrents()
+    let tid = torrents.value[0].tid
+    console.log(tid)
+    if (!tid) {
+      message.warning('未获取到种子 id！')
+      return
+    }
+
+
+    await repeat(tid)
+
+  }
+// if (location.pathname.includes(siteInfo.value.page_torrents) //尝试与配置文件中的信息绑定
+  if (location.pathname.search(/torrents\D*$/) > 0 ||
+      location.pathname.search(/t$/) > 0 ||
+      location.pathname.endsWith('/Torrents') ||
+      location.pathname.includes('/music.php') ||
+      location.pathname.includes('/special.php') ||
+      location.pathname.includes('/live.php') ||
+      location.pathname.includes('/torrents.php') ||
+      location.pathname.includes('/browse.php')) {
+    console.log('当前为种子列表页')
+    torrent_list_page.value = true
+    if (downloaders.value.length <= 0) {
+      await getDownloadersList()
+    }
+    await get_torrent_id_list()
+    // await sync_torrents()
+  }
+  // if (location.pathname.includes(siteInfo.value.page_user) //尝试与配置文件中的信息绑定
+  if (location.pathname.startsWith('/userdetails') ||
+      location.href.includes('/user.php?id=') ||
+      location.href.includes('/p_user/user_detail.php') ||
+      location.href.includes('/user.php?u=') ||
+      location.href.includes('/u/') ||
+      location.href.includes('/index.php?page=usercp&uid=') ||
+      location.href.includes('/Users/profile?uid=') ||
+      location.href.includes('/profile/') ||
+      location.href.includes('/users/')
+  ) {
+    console.log('当前为个人信息页')
+    await syncCookie()
+  }
+
+  // if (location.pathname.includes(siteInfo.value.page_control_panel) //尝试与配置文件中的信息绑定
+  if ((location.pathname.search(/usercp.php/) > 0 && !location.href.includes('?')) ||
+      location.href.includes('p_user/edit_passkey') ||
+      location.href.includes('/index.php?page=usercp&do=pid_c&action=change&uid=') ||
+      location.href.includes('/Users/me') ||
+      location.href.includes('/user/setting') ||
+      location.href.includes('/my.php')
+  ) {
+    console.log('当前为控制面板页')
+    user_detail_page.value = true
+    await syncCookie()
+  }
+}
+
+/**
+ * 获取passkey
+ */
+const getPasskey = () => {
+  try {
+    let passkey = document.evaluate(siteInfo.value.my_passkey_rule, document).iterateNext()!.textContent
+    return passkey!.trim()
+  } catch (e) {
+    console.error(e)
+    return false
+  }
+}
+
+/**
+ * 获取注册时间
+ */
+const getTimeJoin = () => {
+  try {
+    let time_join = document.evaluate(siteInfo.value.my_time_join_rule, document).iterateNext()!.textContent
+    return time_join!.trim()
+        .replace('T', ' ')
+        .replace('+08:00', '')
+        .match(/\d{4}\D\d{2}\D\d{2}\D\d{2}\D\d{2}\D\d{2}/)![0]
+  } catch (e) {
+    console.error(e)
+    return false
+  }
+}
+/**
+ * 获取用户名
+ */
+const getUsername = () => {
+  try {
+    let username = document.evaluate(siteInfo.value.my_username_rule, document).iterateNext()!.textContent
+    return username!.trim()
+  } catch (e) {
+    console.error(e)
+    return false
+  }
+}
+
+/**
+ * 提取邮箱方法
+ */
+function extractFirstEmail(text: string) {
+  const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
+  const match = text.match(emailRegex);
+  return match ? match[0] : null;
+}
+
+/**
+ * 邮箱验证方法
+ */
+function validateEmail(email: string) {
+  const emailRegex = /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
+  return emailRegex.test(email);
+}
+
+/**
+ * 获取邮箱地址
+ */
+const getEmail = () => {
+  try {
+    let emailString = document.evaluate(siteInfo.value.my_email_rule, document).iterateNext()!.textContent
+    if (!emailString) {
+      return false
+    }
+    let email = extractFirstEmail(emailString)
+    if (!email || !validateEmail(email)) {
+      return false
+    }
+    return email
+  } catch (e) {
+    console.error(e)
+    return false
+  }
+}
+
+/**
+ * 组装站点信息
+ * @returns
+ */
+async function getSiteData() {
+
+  console.log(siteInfo.value)
+  if (siteInfo.value === false) {
+    console.error('收割机服务器连接失败！')
+    return CommonResponse.error(-1, '收割机服务器连接失败！');
+  }
+  console.log(siteInfo.value.my_uid_rule)
+  //获取cookie与useragent
+  let user_agent = window.navigator.userAgent
+  let cookieResponse = await getCookieString(location.host)
+
+  if (!cookieResponse.succeed) {
+    console.error(`Cookie获取失败，${cookieResponse.msg}！`)
+    return CommonResponse.error(-1, `Cookie获取失败，${cookieResponse.msg}！`)
+  }
+  cookie.value = cookieResponse.data
+  //获取UID
+  let href = document.evaluate(siteInfo.value.my_uid_rule, document).iterateNext()!.textContent
+  console.log(href)
+
+  if (!href) {
+    console.log('获取 UID 出错啦！')
+    return CommonResponse.error(-1, '获取 UID 信息出错啦！')
+  }
+  if (location.href.includes('?id=') && !location.href.endsWith(href)) {
+    console.log('非本人主页，取消同步！')
+    return CommonResponse.error(-1, '非本人主页，取消同步！')
+  }
+  let user_id;
+  if (href.includes("=")) {
+    if (!href.startsWith('http')) {
+      href = `${location.origin}/${href}`
+    }
+
+    let url = new URL(href)
+    user_id = url.searchParams.get("id") ?? url.searchParams.get("uid") ?? url.searchParams.get("user_id") ?? url.searchParams.get("uuid")
+  } else {
+    let user_id_info = href.split('/')
+    user_id = user_id_info[user_id_info.length - 1].trim()
+  }
+
+  console.log(user_id)
+  if (!user_id) {
+    console.error('用户ID解析失败！')
+    return CommonResponse.error(-1, '用户ID解析失败！')
+  }
+
+  /* 处理馒头域名 */
+  let host = `${document.location.origin}/`
+  if (host.includes("m-team")) {
+    host = host.replace("xp.", "api.")
+    host = host.replace("kp.", "api.")
+  }
+  let siteData = `user_id=${user_id}&site=${siteInfo.value.name}&cookie=${cookie.value}&user_agent=${user_agent}`
+  /* 处理馒头域名结束 */
+
+  if (mySiteId.value != 0) {
+    siteData += `&id=${mySiteId.value}`
+  }
+  if (mySiteId.value == 0) {
+    siteData += `&nickname=${siteInfo.value.name}&mirror=${host}`
+  }
+  let passkey = getPasskey()
+  if (passkey != false) {
+    console.log(passkey)
+    siteData += `&passkey=${passkey}`
+  }
+  let time_join = getTimeJoin()
+  console.log(time_join)
+  if (time_join != false) {
+    siteData += `&time_join=${time_join}`
+  }
+  let username = getUsername()
+  console.log(username)
+  if (username != false) {
+    siteData += `&username=${username}`
+  }
+  let email = getEmail()
+  console.log(email)
+  if (email != false) {
+    siteData += `&email=${email}`
+  }
+  return CommonResponse.success(siteData)
+}
+
+
+/**
+ * 保存站点信息到收割机
+ */
+async function syncCookie() {
+  // 1. 获取站点信息
+  // 2. 获取同步所需信息
+  let data: CommonResponse<any> = await getSiteData();
+  if (!data.succeed) {
+    message.error(data.msg)
+    return
+  }
+  console.log(data)
+  // 3. 同步信息
+  await doSendSiteInfo(data.data);
 }
 
 function xpath(query: string, node: Node) {
@@ -489,55 +724,31 @@ async function get_torrent_detail() {
 /**
  * 获取下载器列表
  */
-async function getDownloaders() {
+async function getDownloadersList() {
   try {
-    const response = await fetch(`${api.value}api/option/downloaders`, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer Monkey.${token.value}`,
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const res = await response.json();
-    console.log(res);
-
-    if (res.code !== 0) {
+    const res = await getDownloaders()
+    if (res.succeed) {
       console.log(res.msg);
-    } else {
-      console.log('下载器列表获取成功！', res);
-      downloaders.value = res.data;
-      downloaders.value.sort((a, b) => (a.sort_id ?? 0) - (b.sort_id ?? 0));
+      return; // 保持与原代码一致的行为
     }
+    console.log('下载器列表获取成功！', res.msg);
+    console.log(res);
+    message.success('收割机提醒您：' + res.msg);
   } catch (error) {
-    console.error('获取下载器列表失败:', error);
-    // 可以添加额外的错误处理逻辑，如显示错误提示
+    console.error('获取下载器列表失败', error);
+    throw new Error("获取下载器列表失败");
   }
 }
 
 /**
  * 测试下载器连接
  */
-const test_connect = async (downloader_id: number) => {
+const test_connect = async (downloaderId: number) => {
   try {
-    const response = await fetch(`${api.value}api/option/downloaders/test/${downloader_id}`, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer Monkey.${token.value}`,
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const res = await response.json();
+    const res: CommonResponse<any> = await testDownloader(downloaderId);
     console.log(res);
 
-    if (res.code !== 0) {
+    if (!res.succeed) {
       message.error(res.msg);
     } else {
       message.success(res.msg);
@@ -551,29 +762,25 @@ const test_connect = async (downloader_id: number) => {
 /**
  * 获取下载器分类列表
  */
-async function getDownloaderCategorise(downloader_id: number) {
+async function getDownloaderCategoryList(downloaderId: number) {
   categories.value.length = 0;
-  if (!downloader_id) {
+  if (!downloaderId) {
     return;
   }
 
   try {
     // 先测试连接
-    await test_connect(downloader_id);
+    const response: CommonResponse<any> = await testDownloader(downloaderId);
+    console.log(response);
 
-    // 获取分类列表
-    const response = await fetch(`${api.value}api/option/downloaders/category/${downloader_id}`, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer Monkey.${token.value}`,
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+    if (!response.succeed) {
+      message.error(response.msg);
+      return
+    } else {
+      message.success(response.msg);
     }
 
-    const res = await response.json();
+    const res = await getDownloaderCategorise(downloaderId);
     console.log(res);
 
     if (!res || res.code !== 0) {
@@ -605,12 +812,11 @@ const generate_magnet_url = async (flag: boolean) => {
   }
   console.log(url_list.value)
 }
-const getCookie = async () => {
-}
+
 /**
  * 推送种子到下载器
  */
-const push_torrent = async (downloader_id: number, category: string | null, save_path: string | null) => {
+const push_torrent = async (downloaderId: number, category: string, save_path: string | null) => {
   // await generate_magnet_url(false)
   console.log(url_list.value);
   if (url_list.value.length <= 0) {
@@ -619,29 +825,15 @@ const push_torrent = async (downloader_id: number, category: string | null, save
   }
 
   try {
-    const data = JSON.stringify({
-      cookie: await getCookie(),
-      category: category,
-      save_path: save_path,
-      urls: url_list.value,
-      tags: [siteInfo.value.name, "harvest-monkey"],
-    });
-    console.log(data);
-
-    const response = await fetch(`${api.value}api/option/push_monkey/${downloader_id}/${mySiteId.value}`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer Monkey.${token.value}`,
-        "Content-Type": "application/json", // 添加内容类型头
-      },
-      body: data,
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const res = await response.json();
+    const res = await pushTorrent(
+        downloaderId,
+        mySiteId.value,
+        category,
+        siteInfo.value.name,
+        cookie.value,
+        save_path,
+        url_list.value,
+    );
     console.log(res);
 
     if (!res || res.code !== 0) {
@@ -664,30 +856,19 @@ const push_torrent = async (downloader_id: number, category: string | null, save
  */
 const sync_torrents = async () => {
   try {
-    const response = await fetch(`${api.value}api/monkey/parse_torrents`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer Monkey.${token.value}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(torrents.value),
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const res = await response.json();
+    const res = await syncTorrents(torrents.value, mySiteId.value,);
     console.log(res);
 
     if (res.code === 0) {
       console.log('种子信息同步成功！', res.msg);
-      // message.success('收割机 提醒您：' + res.msg)
+      message.success('收割机 提醒您：' + res.msg)
     } else {
       console.log(res);
+      message.error(res.msg);
     }
   } catch (error) {
     console.error("种子信息同步失败", error);
+    message.error(`种子信息同步失败: ${error}`);
   }
 };
 
@@ -703,20 +884,8 @@ async function repeat(tid: number) {
   }
 
   try {
-    const response = await fetch(`${api.value}api/auth/monkey/iyuu`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        Authorization: `Bearer Monkey.${token.value}`,
-      },
-      body: `torrent_id=${tid}&site_id=${mySiteId.value}`,
-    });
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const res = await response.json();
+    const res = await repeatInfo(tid, mySiteId.value);
     console.log(res);
 
     if (res.code !== 0) {
@@ -724,6 +893,7 @@ async function repeat(tid: number) {
       message.warn(res.msg);
     } else {
       console.log('种子列表获取成功！', res);
+      message.success(res.msg);
       repeat_info.value = res.data;
     }
   } catch (error) {
@@ -734,7 +904,8 @@ async function repeat(tid: number) {
 </script>
 
 <template>
-  <div ref="harvestWrap" class="harvest-wrap">
+  <div id="harvest-ext" ref="harvestWrap" class="harvest-wrap">
+    <div id="message-container"></div>
     <div style="position:relative;">
       <a-image
           :preview="false"
@@ -744,121 +915,118 @@ async function repeat(tid: number) {
           width="110"/>
       <DragOutlined class="move-item" @mousedown="onMouseDown"/>
     </div>
-    <a-space
-        align="center"
-        style="width: 100%;"
-    >
-      <a-space-compact direction="vertical">
-        <a-button
-            block danger style="width: 110px;"
-            type="text"
-        >
-          <template #icon>
-            <ThunderboltOutlined/>
-          </template>
-          收割机
-        </a-button>
-        <!--        <a-button-->
-        <!--            v-if="user_detail_page && mySiteId == 0"-->
-        <!--            block size="small"-->
-        <!--            type="primary"-->
-        <!--            @click="go_to_control_page">-->
-        <!--          <template #icon>-->
-        <!--            <SyncOutlined/>-->
-        <!--          </template>-->
-        <!--          同步数据-->
-        <!--        </a-button>-->
-        <a-button
-            block
-            size="small"
-            type="primary"
-            @click="go_to_control_page">
-          <template #icon>
-            <SyncOutlined/>
-          </template>
-          同步数据
-        </a-button>
-        <a-button
-            v-if="torrent_list_page && downloaders.length > 0  && mySiteId > 0" block
-            size="small"
-            @click="download_all"
-        >
-          <template #icon>
-            <ArrowDownOutlined/>
-          </template>
-          下载全部
-        </a-button>
-        <a-button
-            v-if="torrent_list_page && downloaders.length > 0  && mySiteId > 0" block
-            size="small"
-            @click="download_free"
-        >
-          <template #icon>
-            <DownloadOutlined/>
-          </template>
-          下载免费
-        </a-button>
-        <!--        <a-button-->
-        <!--            size="small" block-->
-        <!--            v-if="torrent_list_page || torrent_detail_page"-->
-        <!--            @click="sync_torrents"-->
-        <!--        >-->
-        <!--          <template #icon>-->
-        <!--            <DownloadOutlined/>-->
-        <!--          </template>-->
-        <!--          sync-->
-        <!--        </a-button>-->
-        <!--        <a-button-->
-        <!--            size="small" block-->
-        <!--            v-if="torrent_list_page"-->
-        <!--            @click="copy_all"-->
-        <!--        >-->
-        <!--          <template #icon>-->
-        <!--            <CopyFilled/>-->
-        <!--          </template>-->
-        <!--          复制链接-->
-        <!--        </a-button>-->
-        <!--        <a-button-->
-        <!--            size="small" block-->
-        <!--            v-if="torrent_list_page"-->
-        <!--            @click="copy_free"-->
-        <!--        >-->
-        <!--          <template #icon>-->
-        <!--            <CopyOutlined/>-->
-        <!--          </template>-->
-        <!--          复制免费-->
-        <!--        </a-button>-->
-        <!--        <a-button-->
-        <!--            size="small" block-->
-        <!--            v-if="torrent_detail_page"-->
-        <!--            @click="copy_link"-->
-        <!--        >-->
-        <!--          <template #icon>-->
-        <!--            <CopyOutlined/>-->
-        <!--          </template>-->
-        <!--          复制链接-->
-        <!--        </a-button>-->
-        <a-button
-            v-if="torrent_detail_page && downloaders.length > 0  && mySiteId > 0" block
-            size="small"
-            @click="download_to">
-          <template #icon>
-            <DownloadOutlined/>
-          </template>
-          下载到...
-        </a-button>
-        <a-button
-            v-if="torrent_detail_repeat && mySiteId > 0" block
-            size="small"
-            @click="drawer = true">
-          <template #icon>
-            <PushpinFilled/>
-          </template>
-          辅种助手
-        </a-button>
-      </a-space-compact>
+    <a-space direction="vertical">
+      <a-button
+          :href="setting.baseUrl" block danger
+          size="small" style="width: 110px;"
+          target="_blank" type="link"
+      >
+        <template #icon>
+          <ThunderboltOutlined/>
+        </template>
+        收割机
+      </a-button>
+      <!--        <a-button-->
+      <!--            v-if="user_detail_page && mySiteId == 0"-->
+      <!--            block size="small"-->
+      <!--            type="primary"-->
+      <!--            @click="go_to_control_page">-->
+      <!--          <template #icon>-->
+      <!--            <SyncOutlined/>-->
+      <!--          </template>-->
+      <!--          同步数据-->
+      <!--        </a-button>-->
+      <a-button
+          block
+          size="small"
+          type="primary"
+          @click="go_to_control_page">
+        <template #icon>
+          <SyncOutlined/>
+        </template>
+        同步数据
+      </a-button>
+      <a-button
+          v-if="torrent_list_page && downloaders.length > 0  && mySiteId > 0"
+          size="small"
+          style="width: 110px;"
+          @click="download_all"
+      >
+        <template #icon>
+          <ArrowDownOutlined/>
+        </template>
+        下载全部
+      </a-button>
+      <a-button
+          v-if="torrent_list_page && downloaders.length > 0  && mySiteId > 0" block
+          size="small"
+          @click="download_free"
+      >
+        <template #icon>
+          <DownloadOutlined/>
+        </template>
+        下载免费
+      </a-button>
+      <!--        <a-button-->
+      <!--            size="small" block-->
+      <!--            v-if="torrent_list_page || torrent_detail_page"-->
+      <!--            @click="sync_torrents"-->
+      <!--        >-->
+      <!--          <template #icon>-->
+      <!--            <DownloadOutlined/>-->
+      <!--          </template>-->
+      <!--          sync-->
+      <!--        </a-button>-->
+      <!--        <a-button-->
+      <!--            size="small" block-->
+      <!--            v-if="torrent_list_page"-->
+      <!--            @click="copy_all"-->
+      <!--        >-->
+      <!--          <template #icon>-->
+      <!--            <CopyFilled/>-->
+      <!--          </template>-->
+      <!--          复制链接-->
+      <!--        </a-button>-->
+      <!--        <a-button-->
+      <!--            size="small" block-->
+      <!--            v-if="torrent_list_page"-->
+      <!--            @click="copy_free"-->
+      <!--        >-->
+      <!--          <template #icon>-->
+      <!--            <CopyOutlined/>-->
+      <!--          </template>-->
+      <!--          复制免费-->
+      <!--        </a-button>-->
+      <!--        <a-button-->
+      <!--            size="small" block-->
+      <!--            v-if="torrent_detail_page"-->
+      <!--            @click="copy_link"-->
+      <!--        >-->
+      <!--          <template #icon>-->
+      <!--            <CopyOutlined/>-->
+      <!--          </template>-->
+      <!--          复制链接-->
+      <!--        </a-button>-->
+      <a-button
+          v-if="torrent_detail_page && downloaders.length > 0  && mySiteId > 0" block
+          size="small"
+          @click="download_to">
+        <template #icon>
+          <DownloadOutlined/>
+        </template>
+        下载到...
+      </a-button>
+      <a-button
+          v-if="torrent_detail_repeat && mySiteId > 0" block
+          size="small"
+          @click="drawer = true">
+        <template #icon>
+          <PushpinFilled/>
+        </template>
+        辅种助手
+      </a-button>
       <!--      <a-space-compact direction="vertical">-->
-      <!--        <a-button block @click="getDownloaders">下载器列表</a-button>-->
+      <!--        <a-button block @click="getDownloadersList">下载器列表</a-button>-->
       <!--        <a-button block @click="get_torrent_list">种子列表页</a-button>-->
       <!--        <a-button block @click="get_torrent_detail">种子详情页</a-button>-->
       <!--        <a-button block @click="generate_magnet_url(false)">组装URL</a-button>-->
@@ -879,7 +1047,7 @@ async function repeat(tid: number) {
           accordion
           expand-icon-position="end"
           style="background: rgb(255, 255, 255)"
-          @change="getDownloaderCategorise">
+          @change="getDownloaderCategoryList">
         <a-collapse-panel v-for="d in downloaders" :key="d.id" style="font-size: 16px;">
           <template #header>
             <a-avatar :size="18">
@@ -921,7 +1089,7 @@ async function repeat(tid: number) {
         @close="drawer=!drawer"
     >
       <template #extra>
-        <a-avatar :src="`${api}favicon.png`">
+        <a-avatar :src="`${setting.baseUrl}favicon.png`">
           辅种助手
         </a-avatar>
       </template>
@@ -970,10 +1138,6 @@ async function repeat(tid: number) {
 </template>
 
 <style scoped>
-body {
-  margin: 0 auto !important;
-  height: auto !important;
-}
 
 .harvest-wrap {
   position: fixed;
@@ -1012,6 +1176,6 @@ body {
   position: absolute;
   top: 0;
   left: 0;
-  font-size: 30px;
+  font-size: 20px;
 }
 </style>
