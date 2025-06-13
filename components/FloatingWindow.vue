@@ -904,9 +904,9 @@ async function repeat(tid: number) {
   }
 }
 
-const getModalContainer = () => {
+const getModalContainer = (id: string = 'modal-container') => {
   // 假设你的 shadow host 是 <harvest-ui>
-  const shadowRoot = document.querySelector('harvest-ui')?.shadowRoot?.querySelector("#modal-container")
+  const shadowRoot = document.querySelector('harvest-ui')?.shadowRoot?.querySelector(`#${id}`)
   // 你也可以在 shadow DOM 中放一个 div#modal-container
   return shadowRoot || document.body
 }
@@ -916,6 +916,7 @@ const getModalContainer = () => {
   <div id="harvest-ext" ref="harvestWrap" class="harvest-wrap">
     <div id="message-container"></div>
     <div id="modal-container"></div>
+    <div id="drawer-container"></div>
     <div style="position:relative;">
       <a-image
           :preview="false"
@@ -958,7 +959,7 @@ const getModalContainer = () => {
       </a-button>
       <a-button
           v-if="torrent_list_page && downloaders.length > 0  && mySiteId > 0"
-          size="small"
+          block size="small"
           style="width: 110px;"
           @click="download_all"
       >
@@ -1075,7 +1076,7 @@ const getModalContainer = () => {
                 ghost
                 size="small"
                 type="primary"
-                @click="push_torrent(d.id, null,null)"
+                @click="push_torrent(d.id, '',null)"
             >
               未分类
             </a-button>
@@ -1092,10 +1093,11 @@ const getModalContainer = () => {
       </a-collapse>
     </a-modal>
     <a-drawer
-        :bodyStyle="{
+        v-model:visible="drawer" :bodyStyle="{
           padding:0
-        }" :open="drawer" :width="400"
-        :zIndex="10001" placement="right" title="辅种助手"
+        }" :get-container="getModalContainer('drawer-container')"
+        :width="400" :zIndex="10001" placement="right"
+        title="辅种助手"
         @close="drawer=!drawer"
     >
       <template #extra>
