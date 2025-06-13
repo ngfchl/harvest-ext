@@ -903,11 +903,19 @@ async function repeat(tid: number) {
     message.error('网络请求失败，请检查连接');
   }
 }
+
+const getModalContainer = () => {
+  // 假设你的 shadow host 是 <harvest-ui>
+  const shadowRoot = document.querySelector('harvest-ui')?.shadowRoot?.querySelector("#modal-container")
+  // 你也可以在 shadow DOM 中放一个 div#modal-container
+  return shadowRoot || document.body
+}
 </script>
 
 <template>
   <div id="harvest-ext" ref="harvestWrap" class="harvest-wrap">
     <div id="message-container"></div>
+    <div id="modal-container"></div>
     <div style="position:relative;">
       <a-image
           :preview="false"
@@ -1035,7 +1043,7 @@ async function repeat(tid: number) {
       <!--        <a-button block @click="generate_magnet_url(true)">免费URL</a-button>-->
       <!--      </a-space-compact>-->
     </a-space>
-    <a-modal v-model:open="open" :title="modal_title" @ok="handleOk">
+    <a-modal v-model:visible="open" :get-container="getModalContainer" :title="modal_title" @ok="handleOk">
       <a-tooltip v-if="torrents.length <= 1" :title="url_list[0]">
         <a-alert :message="singleTorrent?.subtitle" style="text-align: center !important;"></a-alert>
       </a-tooltip>
