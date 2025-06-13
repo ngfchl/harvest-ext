@@ -1,11 +1,11 @@
-import {CommonResponse, Settings, SiteInfo} from "@/types";
+import {CommonResponse, Settings, SiteInfo, Torrent} from "@/types";
 import {defineStore} from "pinia";
 import {ref} from "vue";
 import {message} from "ant-design-vue";
 
 export const useSettingStore = defineStore("setting", () => {
     const setting = ref<Settings>({
-        baseUrl: 'http://192.168.123.5:35173/', token: '&ze3pmoe'
+        baseUrl: '', token: ''
     })
     const canSave = ref(false);
 
@@ -13,17 +13,16 @@ export const useSettingStore = defineStore("setting", () => {
     const getSetting = async () => {
         try {
             const data = await storage.getItem("local:setting");
+            console.log(data);
             if (data) {
                 setting.value = data as Settings;
-                return true;
+                console.log(setting.value.token);
+                return CommonResponse.success(data);
             }
-            setting.value = {
-                baseUrl: 'http://192.168.123.5:35173/', token: '&ze3pmoe'
-            }
-            return false;
+            return CommonResponse.error(-1, '获取收割机服务器设置失败！');
         } catch (error) {
             console.error("获取设置失败:", error);
-            return false;
+            return CommonResponse.error(-1, `获取收割机服务器设置失败！${error}`);
         }
     };
 
@@ -49,61 +48,143 @@ export const useSettingStore = defineStore("setting", () => {
         await getSetting();
     };
 
-    // 立即执行初始化，但不阻塞其他代码
-    initialize().catch(error => {
-        console.error("初始化设置失败:", error);
-    });
+    // // 立即执行初始化，但不阻塞其他代码
+    // initialize().catch(error => {
+    //     console.error("初始化设置失败:", error);
+    // });
     /**
      * 获取站点相关规则
      * @param {string} host - 站点域名
      * @returns {Promise<Object|null>} 站点信息对象或null
      */
     const getSite = async (host: string): Promise<CommonResponse<SiteInfo | null> | null> => {
-        console.log(setting.value.baseUrl);
-        const path = "api/auth/monkey/get_site/"
-
-        try {
-            // 处理m-team域名特殊规则
-            if (host.includes("m-team")) {
-                host = host.replace("xp.", "api.")
-                host = host.replace("kp.", "api.")
+        await getSetting();
+        const res = await browser.runtime.sendMessage({
+            type: 'getSiteInfo',
+            payload: {
+                setting: setting.value,
+                host: host,
             }
-            let url = `${setting.value.baseUrl}${path}${host}`
-            const response = await fetch(url, {
-                method: "GET",
-                headers: {
-                    "Authorization": `Bearer Monkey.${setting.value.token}`,
-                    "Content-Type": "application/json",
-                },
-            });
+        });
 
-            if (!response.ok) {
-                let msg = `HTTP error! status: ${response.status}`
-                message.warning(msg, 10000);
-                throw new Error(msg);
-            }
-
-            const res = await response.json();
-            console.log(res);
-
-            if (res.code !== 0) {
-                const msg = `获取站点信息出错：${res.msg}`;
-                console.warn(msg);
-                message.warning(msg, 10000);
-                return CommonResponse.error(-1, msg)
-            }
-
-            // 返回完整的站点信息
+        console.log(res);
+        if (res.succeed) {
             return CommonResponse.success(res.data as SiteInfo);
-        } catch (error) {
-            let msg = `服务器连接失败！${error}`
-            console.log(msg);
-            message.error(msg);
-            return CommonResponse.error(-1, msg)
         }
+        const msg = `获取站点信息出错：${res ? res.msg : ''}`;
+        message.warning(msg);
+        return CommonResponse.error(-1, msg)
+        // 返回完整的站点信息
 
     }
 
+    /**
+     * 保存站点信息到服务器
+     * @param host
+     */
+    const getCookieString = async (host: string) => {
+        const cookies: CommonResponse<any> = await browser.runtime.sendMessage({
+            type: 'getSiteCookies',
+            payload: {
+                setting: setting.value,
+                host: host,
+            }
+        });
+        console.log("Cookies:", cookies)
+        return cookies
+    }
+
+    /**
+     * 保存站点信息到服务器
+     * @param data
+     */
+    const sendSiteInfo = async (data: string) => {
+        return await browser.runtime.sendMessage({
+            type: 'sendSiteInfo',
+            payload: {
+                setting: setting.value,
+                data: data,
+            }
+        })
+    }
+    /**
+     * 保存站点信息到服务器
+     */
+    const getDownloaders = async () => {
+        return await browser.runtime.sendMessage({
+            type: 'getDownloaders',
+            payload: {
+                setting: setting.value,
+            }
+        })
+    }
+    const testDownloader = async (downloaderId: number) => {
+        return await browser.runtime.sendMessage({
+            type: 'testDownloader',
+            payload: {
+                setting: setting.value,
+                downloaderId: downloaderId
+            }
+        })
+    }
+    const getDownloaderCategorise = async (downloaderId: number) => {
+        return await browser.runtime.sendMessage({
+            type: 'getDownloaderCategorise',
+            payload: {
+                setting: setting.value,
+                downloaderId: downloaderId
+            }
+        })
+    }
+    const pushTorrent = async (
+        downloaderId: number,
+        mySiteId: number,
+        category: string,
+        siteName: string,
+        cookie: string,
+        savePath: string | null,
+        urlList: string[],
+    ) => {
+        return await browser.runtime.sendMessage({
+            type: 'pushTorrent',
+            payload: {
+                setting: setting.value,
+                downloaderId: downloaderId,
+                mySiteId: mySiteId,
+                category: category,
+                siteName: siteName,
+                cookie: cookie,
+                savePath: savePath,
+                urlList: urlList,
+            }
+        })
+    }
+    const repeatInfo = async (
+        tid: number,
+        mySiteId: number
+    ) => {
+        return await browser.runtime.sendMessage({
+            type: 'repeatInfo',
+            payload: {
+                setting: setting.value,
+                tid: tid,
+                mySiteId: mySiteId
+            }
+        })
+    }
+    const syncTorrents = async (
+        torrents: Torrent[],
+        mySiteId: number,
+    ) => {
+        return await browser.runtime.sendMessage({
+            type: 'syncTorrents',
+            payload: {
+                setting: setting.value,
+                torrents: torrents,
+                mySiteId: mySiteId,
+            }
+        })
+    }
     const testServer = async () => {
         const res = await getSite('1ptba.com')
         if (!res?.succeed) {
@@ -122,6 +203,14 @@ export const useSettingStore = defineStore("setting", () => {
         saveSetting,
         getSite,
         testServer,
+        sendSiteInfo,
+        getDownloaders,
+        getCookieString,
+        testDownloader,
+        getDownloaderCategorise,
+        pushTorrent,
+        repeatInfo,
+        syncTorrents,
         // 可选：添加计算属性方便访问单个字段
         get baseUrl() {
             return setting.value.baseUrl;
