@@ -122,3 +122,264 @@ class CommonResponse<T> {
         return JSON.stringify(this.toObject());
     }
 }
+
+// 铂金学院 PT 站点配置接口
+export interface WebSite {
+    url: string[];
+    name: string;
+    nickname: string;
+    logo: string;
+    tracker: string;
+    sp_full: number;
+    limit_speed: number;
+    tags: string;
+    iyuu: number;
+    sign_in: boolean;
+    get_info: boolean;
+    repeat_torrents: boolean;
+    brush_free: boolean;
+    brush_rss: boolean;
+    hr_discern: boolean;
+    search_torrents: boolean;
+    page_index: string;
+    page_torrents: string;
+    page_sign_in: string;
+    page_control_panel: string;
+    page_detail: string;
+    page_download: string;
+    page_user: string;
+    page_search: string;
+    page_message: string;
+    page_hr: string;
+    page_leeching: string;
+    page_uploaded: string;
+    page_seeding: string;
+    page_completed: string;
+    page_mybonus: string;
+    page_viewfilelist: string;
+    sign_info_title: string;
+    sign_info_content: string;
+    hr: boolean;
+    hr_rate: number;
+    hr_time: number;
+    my_invitation_rule: string;
+    my_time_join_rule: string;
+    my_latest_active_rule: string;
+    my_uploaded_rule: string;
+    my_downloaded_rule: string;
+    my_ratio_rule: string;
+    my_bonus_rule: string;
+    my_per_hour_bonus_rule: string;
+    my_score_rule: string;
+    my_level_rule: string;
+    my_passkey_rule: string;
+    my_uid_rule: string;
+    my_hr_rule: string;
+    my_leech_rule: string;
+    my_publish_rule: string;
+    my_seed_rule: string;
+    my_seed_vol_rule: string;
+    my_mailbox_rule: string;
+    my_message_title: string;
+    my_notice_rule: string;
+    my_notice_title: string;
+    my_notice_content: string;
+    torrents_rule: string;
+    torrent_title_rule: string;
+    torrent_subtitle_rule: string;
+    torrent_detail_url_rule: string;
+    torrent_category_rule: string;
+    torrent_poster_rule: string;
+    torrent_magnet_url_rule: string;
+    torrent_size_rule: string;
+    torrent_progress_rule: string;
+    torrent_hr_rule: string;
+    torrent_sale_rule: string;
+    torrent_sale_expire_rule: string;
+    torrent_release_rule: string;
+    torrent_seeders_rule: string;
+    torrent_leechers_rule: string;
+    torrent_completers_rule: string;
+    detail_title_rule: string;
+    detail_subtitle_rule: string;
+    detail_download_url_rule: string;
+    detail_size_rule: string;
+    detail_category_rule: string;
+    detail_count_files_rule: string;
+    detail_hash_rule: string;
+    detail_free_rule: string;
+    detail_free_expire_rule: string;
+    detail_douban_rule: string;
+    detail_imdb_rule: string;
+    detail_poster_rule: string;
+    detail_tags_rule: string;
+    torrent_tags_rule: string;
+    detail_hr_rule: string;
+    alive: boolean;
+    page_pieces_hash_api: string;
+    pieces_repeat: boolean;
+    proxy: boolean;
+    imdb_search: string;
+    structure: string;
+    type: string;
+    nation: string;
+    my_email_rule: string;
+    my_username_rule: string;
+    buy_page: string;
+    buy_action: {
+        "100GB上传流量": string;
+        "100GB下载流量": string;
+        "1个邀请名额": string;
+        "1个临时邀请名额": string;
+        "贵宾待遇": string;
+    };
+    level: {
+        User: LevelInfo;
+        PowerUser: LevelInfo;
+        EliteUser: LevelInfo;
+        CrazyUser: LevelInfo;
+        InsaneUser: LevelInfo;
+        VeteranUser: LevelInfo;
+        ExtremeUser: LevelInfo;
+        UltimateUser: LevelInfo;
+        NexusMaster: LevelInfo;
+        VIP: LevelInfo;
+    };
+}
+
+// 等级信息接口
+export interface LevelInfo {
+    level_id: number;
+    level: string;
+    days: number;
+    uploaded: string;
+    downloaded: string;
+    bonus: number;
+    score: number;
+    ratio: number;
+    torrents: number;
+    leeches: number;
+    seeding_delta: number;
+    keep_account: boolean;
+    graduation: boolean;
+    rights: string;
+}
+
+/**
+ * 站点模型接口
+ */
+export interface MySite {
+    /** 站点名称，唯一标识 */
+    site: string;
+    /** 站点昵称 */
+    nickname: string;
+    /** 排序ID，默认值为1 */
+    sortId: number;
+
+    /* ------------------ 用户信息 ------------------ */
+    /** 用户ID，数字UID或用户名 */
+    userId: string | null;
+    /** 用户名称 */
+    username: string | null;
+    /** 注册邮箱 */
+    email: string | null;
+    /** PassKey */
+    passkey: string | null;
+    /** AuthKey */
+    authkey: string | null;
+    /** Cookies，与UA搭配使用效果更佳 */
+    cookie: string;
+    /** User-Agent，获取cookie的浏览器UA */
+    userAgent: string;
+    /** RSS地址 */
+    rss: string | null;
+    /** 种子地址 */
+    torrents: string | null;
+
+    /* ------------------ 用户设置 ------------------ */
+    /** 站点是否可用，默认值为true */
+    available: boolean;
+    /** 是否开启签到，默认值为true */
+    signIn: boolean;
+    /** 是否抓取站点数据，默认值为true */
+    getInfo: boolean;
+    /** 是否支持辅种，默认值为true */
+    repeatTorrents: boolean;
+    /** 是否开启Free刷流，默认值为true */
+    brushFree: boolean;
+    /** 是否开启RSS刷流，默认值为false */
+    brushRss: boolean;
+    /** 是否开启拆包刷流，默认值为true */
+    packageFile: boolean;
+    /** 是否下载HR种子，默认值为false */
+    hrDiscern: boolean;
+    /** 是否开启搜索，默认值为true */
+    searchTorrents: boolean;
+    /** 是否在首页展示，默认值为true */
+    showInDash: boolean;
+    /** 代理服务器地址 */
+    proxy: string | null;
+    /** 删种规则，JSON格式 */
+    removeTorrentRules: object | null;
+    /** 访问地址 */
+    mirror: string | null;
+
+    /* ------------------ 用户数据（自动拉取） ------------------ */
+    /** 注册时间，默认值为当前时间 */
+    timeJoin: Date;
+    /** 最后访问时间 */
+    latestActive: Date | null;
+    /** 短消息数量，默认值为0 */
+    mail: number;
+    /** 公告数量，默认值为0 */
+    notice: number;
+    /** 签到信息，JSON格式 */
+    signInfo: SignInfoByDate;
+    /** 站点数据，JSON格式 */
+    status: StatusByDate;
+}
+
+/**
+ * 站点状态接口（按日期分类）
+ */
+interface StatusByDate {
+    [date: string]: StatusInfo;
+}
+
+/**
+ * 单个日期的状态信息接口
+ */
+interface StatusInfo {
+    ratio: number;
+    downloaded: number;
+    uploaded: number;
+    my_bonus: number;
+    my_score: number;
+    seed: number;
+    leech: number;
+    invitation: number;
+    publish: number;
+    seed_days: number;
+    my_hr: string;
+    my_level: string;
+    seed_volume: number;
+    updated_at: string; // 日期时间格式
+    bonus_hour: string;
+    created_at: string; // 日期时间格式
+}
+
+/**
+ * 签到信息接口（按日期分类）
+ */
+interface SignInfoByDate {
+    [date: string]: SignInfo;
+}
+
+/**
+ * 单个日期的签到信息接口
+ */
+interface SignInfo {
+    time?: string; // 部分日期使用time
+    updated_at?: string; // 部分日期使用updated_at
+    info: string; // 签到详情信息
+}
