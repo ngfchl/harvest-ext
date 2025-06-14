@@ -1,6 +1,5 @@
 <script lang="ts" setup>
 import {computed, onMounted} from 'vue';
-import {message} from "ant-design-vue";
 import {useSettingStore} from "@/hooks/use-setting";
 import {storeToRefs} from "pinia";
 
@@ -9,7 +8,12 @@ const {
   setting,
   canSave,
 } = storeToRefs(settingStore)
-const {saveSetting, getSetting, testServer} = settingStore
+const {
+  saveSetting,
+  getSetting,
+  testServer,
+  cacheServerData,
+} = settingStore
 // const mySiteId = ref<number>(0)
 // const siteInfo = ref();
 
@@ -20,13 +24,6 @@ const formMaxWidth = computed(() => {
 
 // 保存设置
 const saveSettings = async () => {
-  if (!setting.value.baseUrl.startsWith('https://') && !setting.value.baseUrl.startsWith('http://')) {
-    message.warn("服务器地址填写出错了，请以 http:// 或 https:// 开头");
-    return;
-  }
-  if (!setting.value.baseUrl.endsWith('/')) {
-    setting.value.baseUrl = `${setting.value.baseUrl}/`;
-  }
   console.log('保存设置:', setting.value);
   try {
     await saveSetting(setting.value)
@@ -52,10 +49,9 @@ onMounted(async () => {
       <a-layout-header class="header">
         <a-typography-title :level="3" class="title">收割机</a-typography-title>
       </a-layout-header>
-
       <a-layout-content class="content">
         <a-space direction="vertical">
-          <a-space>
+          <a-space size="small">
             <a-form
                 :style="{ maxWidth: formMaxWidth }"
                 class="form-container"
@@ -74,6 +70,17 @@ onMounted(async () => {
                     autofocus
                     label="Token"
                     placeholder="安全Token"
+                />
+              </a-form-item>
+              <a-form-item
+                  :wrapper-col="{ span: 24 }"
+              >
+                <a-input
+                    v-model:value.lazy="setting.imgUrl"
+                    autofocus
+                    label="图片地址"
+                    placeholder="图片地址"
+                    style="width: 100%"
                 />
               </a-form-item>
             </a-form>
@@ -106,6 +113,7 @@ onMounted(async () => {
               <a-button
                   block
                   type="primary"
+                  @click="cacheServerData"
               >
                 数据缓存
               </a-button>
