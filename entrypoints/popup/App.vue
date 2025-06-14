@@ -8,8 +8,6 @@ const settingStore = useSettingStore()
 const {
   setting,
   canSave,
-  baseUrl,
-  token,
 } = storeToRefs(settingStore)
 const {saveSetting, getSetting, testServer} = settingStore
 // const mySiteId = ref<number>(0)
@@ -56,52 +54,89 @@ onMounted(async () => {
       </a-layout-header>
 
       <a-layout-content class="content">
-        <a-form
-            :style="{ maxWidth: formMaxWidth }"
-            class="form-container"
-            layout="vertical"
-        >
-          <a-form-item>
-            <a-input
-                v-model:value="setting.baseUrl"
-                placeholder="Harvest服务器地址"
-            />
-          </a-form-item>
+        <a-space direction="vertical">
+          <a-space>
+            <a-form
+                :style="{ maxWidth: formMaxWidth }"
+                class="form-container"
+                layout="vertical"
+            >
+              <a-form-item>
+                <a-input
+                    v-model:value="setting.baseUrl"
+                    placeholder="Harvest服务器地址"
+                />
+              </a-form-item>
 
-          <a-form-item>
-            <a-input-password
-                v-model:value.lazy="setting.token"
-                autofocus
-                label="Token"
-                placeholder="安全Token"
-            />
-          </a-form-item>
-
-          <a-form-item>
-            <a-space>
-              <a-button block ghost type="primary" @click="testServer">
-                测试
-              </a-button>
+              <a-form-item>
+                <a-input-password
+                    v-model:value.lazy="setting.token"
+                    autofocus
+                    label="Token"
+                    placeholder="安全Token"
+                />
+              </a-form-item>
+            </a-form>
+          </a-space>
+          <a-space>
+            <a-button block ghost type="primary" @click="testServer">
+              登录鉴权
+            </a-button>
+            <a-button
+                :href="setting.baseUrl"
+                danger
+                target="_blank"
+                type="primary"
+            >
+              打开网页
+            </a-button>
+          </a-space>
+          <a-space v-if="canSave">
+            <a-button
+                block
+                type="primary"
+                @click="saveSettings"
+            >
+              保存配置
+            </a-button>
+            <a-popover title="缓存服务器数据">
+              <template #content>
+                <p>从收割机服务器拉取站点配置列表，已有站点列表，下载器列表，缓存到本地，减少交互，提高效率</p>
+              </template>
               <a-button
-                  :href="baseUrl"
-                  danger
-                  target="_blank"
-                  type="primary"
-              >
-                打开
-              </a-button>
-
-              <a-button
-                  v-if="canSave"
                   block
                   type="primary"
-                  @click="saveSettings"
               >
-                保存
+                数据缓存
               </a-button>
-            </a-space>
-          </a-form-item>
-        </a-form>
+            </a-popover>
+          </a-space>
+          <a-space v-if="canSave">
+            <a-popover title="一键添加站点">
+              <template #content>
+                <p>筛选未添加的站点列表，同时在本地的 Cookie 信息中筛选访问过的站点，抓取 Cookie 和
+                  UserAgent，同步到收割机服务器，然后批量打开</p>
+              </template>
+              <a-button
+                  block
+                  type="primary"
+              >
+                一键添加
+              </a-button>
+            </a-popover>
+            <a-popover title="一键同步Cookie">
+              <template #content>
+                <p>一键同步已添加站点的 Cookie 信息，此功能仅同步 Cookie 和 UserAgent</p>
+              </template>
+              <a-button
+                  block
+                  type="primary"
+              >
+                一键同步
+              </a-button>
+            </a-popover>
+          </a-space>
+        </a-space>
       </a-layout-content>
     </a-layout>
   </div>
