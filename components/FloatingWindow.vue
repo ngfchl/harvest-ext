@@ -24,7 +24,6 @@ const {
   filterMySiteBySiteName,
   filterSiteById,
   sendSiteInfo,
-  getDownloaders,
   getCookieString,
   testDownloader,
   getDownloaderCategorise,
@@ -287,9 +286,6 @@ async function init_button() {
       location.pathname.includes('/browse.php')) {
     console.log('当前为种子列表页')
     torrent_list_page.value = true
-    if (downloaders.value.length <= 0) {
-      await getDownloadersList()
-    }
     await get_torrent_id_list()
     // await sync_torrents()
   }
