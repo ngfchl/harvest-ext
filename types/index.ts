@@ -1,5 +1,6 @@
 export interface Settings {
     baseUrl: string;
+    imgUrl: string;
     token: string;
 }
 
