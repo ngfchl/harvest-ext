@@ -12,6 +12,7 @@ const {
   saveSetting,
   getSetting,
   testServer,
+  autoAddSites,
   cacheServerData,
 } = settingStore
 // const mySiteId = ref<number>(0)
@@ -128,6 +129,7 @@ onMounted(async () => {
               <a-button
                   block
                   type="primary"
+                  @click="autoAddSites"
               >
                 一键添加
               </a-button>
