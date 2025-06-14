@@ -10,8 +10,8 @@ export const useSettingStore = defineStore("setting", () => {
     })
     const canSave = ref(false);
     const downloaders = ref<Downloader[]>()
-    const webSiteList = ref<WebSite[]>([])
-    const mySiteList = ref<MySite[]>([])
+    const webSiteList = ref<{ string: WebSite }>()
+    const mySiteList = ref<{ string: MySite }>()
 
     // 从存储加载设置
     const getSetting = async () => {
@@ -48,8 +48,8 @@ export const useSettingStore = defineStore("setting", () => {
     // 自动初始化 - 正确处理Promise
     const initialize = async () => {
         await getSetting();
+        await loadFromCacheIfAvailable();
     };
-
     /**
      * 缓存数据到本地存储
      * @param key 缓存键名
@@ -72,9 +72,8 @@ export const useSettingStore = defineStore("setting", () => {
      * @returns 缓存数据或null
      */
     const getFromCache = async (key: string,): Promise<any | null> => {
-        const result = await storage.getItem(key);
-        const cacheData = result[key];
-
+        const cacheData = await storage.getItem(<StorageItemKey>key);
+        // const cacheData = result.data;
         if (!cacheData) {
             console.log(`缓存未找到: ${key}`);
             return null;
@@ -84,7 +83,7 @@ export const useSettingStore = defineStore("setting", () => {
         const isExpired = Date.now() > cacheData.timestamp + cacheData.expireTime;
         if (isExpired) {
             console.log(`缓存已过期: ${key}`);
-            await browser.storage.local.remove(key);
+            await storage.removeItem(<StorageItemKey>key);
             return null;
         }
 
@@ -93,28 +92,28 @@ export const useSettingStore = defineStore("setting", () => {
     }
     /**
      * 尝试从本地缓存加载服务器数据
-     * @param forceRefresh 是否强制刷新不使用缓存
      * @returns 如果成功从缓存加载返回true，否则返回false
      */
-    const loadFromCacheIfAvailable = async (forceRefresh: boolean): Promise<boolean> => {
+    const loadFromCacheIfAvailable = async (): Promise<boolean> => {
         console.log('正在读取本地缓存数据')
         // 从本地缓存获取数据
         const [cachedSupportedSites, cachedMySites, cachedDownloaders] = await Promise.all([
-            getFromCache('local:supportedSites', forceRefresh),
-            getFromCache('local:mySites', forceRefresh),
-            getFromCache('local:downloaders', forceRefresh)
+            getFromCache('local:supportedSites'),
+            getFromCache('local:mySites'),
+            getFromCache('local:downloaders')
         ]);
 
         // 如果缓存存在且未过期，直接使用
-        if (!forceRefresh && cachedSupportedSites && cachedMySites && cachedDownloaders) {
+        if (cachedSupportedSites && cachedMySites && cachedDownloaders) {
             webSiteList.value = cachedSupportedSites;
             mySiteList.value = cachedMySites;
             downloaders.value = cachedDownloaders;
             console.log('使用本地缓存数据');
-            return;
+            return false;
         }
         message.warning('缓存数据已过期，正在重新加载数据')
         await cacheServerData()
+        return true;
     }
 
     const cacheServerData = async () => {
@@ -199,6 +198,28 @@ export const useSettingStore = defineStore("setting", () => {
             return acc;
         }, {}))
     }
+    const filterSiteById = async (siteId: number) => {
+        const mySite = mySiteList.value[siteId];
+        if (!mySite) {
+            console.log(`${siteId} not found`);
+            message.warning(`ID 为${siteId}的站点不存在！`);
+            return
+        }
+        return webSiteList.value[mySite.site]
+    }
+    const filterSiteByHost = (host: string) => {
+        host = replaceMTeamDomainIfMatched(host).toLowerCase();
+
+        return [...webSiteList.value.values()].find(site =>
+            site.url.some(url => {
+                try {
+                    return new URL(url).host === host;
+                } catch {
+                    return false; // 忽略无效URL
+                }
+            })
+        );
+    }
     // // 立即执行初始化，但不阻塞其他代码
     // initialize().catch(error => {
     //     console.error("初始化设置失败:", error);
@@ -209,7 +230,6 @@ export const useSettingStore = defineStore("setting", () => {
      * @returns {Promise<Object|null>} 站点信息对象或null
      */
     const getSite = async (host: string): Promise<CommonResponse<SiteInfo | null> | null> => {
-        await getSetting();
         const res = await browser.runtime.sendMessage({
             type: 'getSiteInfo',
             payload: {
@@ -362,6 +382,7 @@ export const useSettingStore = defineStore("setting", () => {
      * @returns 处理后的域名
      */
     function replaceMTeamDomainIfMatched(host: string): string {
+        host = host.toLowerCase()
         const pattern = /^([^/.\s]+)\.m-team\.(cc|io)$/;
         const match = host.match(pattern);
 
@@ -374,8 +395,11 @@ export const useSettingStore = defineStore("setting", () => {
     }
 
     return {
+        initialize,
         cacheServerData,
         canSave,
+        filterSiteByHost,
+        filterSiteById,
         getCookieString,
         getDownloaderCategorise,
         getDownloaders,
