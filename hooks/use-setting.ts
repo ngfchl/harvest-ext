@@ -239,7 +239,23 @@ export const useSettingStore = defineStore("setting", () => {
             Object.entries(webSiteList.value).filter(([key, site]) => !existingSites.has(key) && site.alive)
         );
     }
-
+    const autoSyncCookie = async (): Promise<void> => {
+        console.log('开始同步站点 Cookie', mySiteList.value)
+        await loadFromCacheIfAvailable()
+        const siteList = Object.values(mySiteList.value!);
+        console.log('需要同步的站点：', siteList);
+        for (const site of siteList) {
+            console.log(`正在同步的站点：${site.nickname} ==> ${site.site}`)
+            let {host} = new URL(site.mirror!);
+            const response = await getCookieString(host);
+            if (response.succeed) {
+                // 保存Cookie到插件存储（推荐使用chrome.storage）
+                let siteData = `user_id=${site.user_id}&site=${site.site}&cookie=${response.data}&user_agent=${window.navigator.userAgent}`
+                const res = await sendSiteInfo(siteData)
+                console.log(res.msg)
+            }
+        }
+    }
     const autoAddSites = async () => {
         importMode.value = true;
         const toAddSites = await filterToAddSite()
@@ -470,6 +486,7 @@ export const useSettingStore = defineStore("setting", () => {
         cacheServerData,
         canSave,
         autoAddSites,
+        autoSyncCookie,
         filterSiteByHost,
         filterSiteById,
         filterMySiteBySiteName,
