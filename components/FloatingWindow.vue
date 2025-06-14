@@ -21,6 +21,7 @@ const {
   getSite,
   initialize,
   filterSiteByHost,
+  filterMySiteBySiteName,
   filterSiteById,
   sendSiteInfo,
   getDownloaders,
@@ -112,10 +113,15 @@ onMounted(async () => {
   loadLocalStorage();
   // 如果站点 ID 不存在，使用站点 host 去查找站点配置文件
   if (!mySiteId.value) {
-    siteInfo.value = await filterSiteByHost(location.host)
+    console.log(mySiteId.value)
+    siteInfo.value = filterSiteByHost(location.host)
+    mySiteId.value = filterMySiteBySiteName(siteInfo.value.name);
+    localStorage.setItem('mySite', JSON.stringify(mySiteId.value));
+  } else {
+    // 如果站点 Id 存在
+    siteInfo.value = await filterSiteById(mySiteId.value);
   }
-  // 如果站点 Id 存在
-  siteInfo.value = await filterSiteById(mySiteId.value);
+  localStorage.setItem('website', JSON.stringify(siteInfo.value));
 
   // await getSiteInfo()
   // 在 Shadow DOM 中添加事件监听器
