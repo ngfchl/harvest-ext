@@ -1098,7 +1098,7 @@ const getModalContainer = (id: string = 'modal-container') => {
         }" :get-container="getModalContainer('drawer-container')"
         :width="400" :zIndex="10001" placement="right"
         title="辅种助手"
-        @close="drawer=!drawer"
+        @close="drawer = false"
     >
       <template #extra>
         <a-avatar :src="`${setting.baseUrl}favicon.png`">
