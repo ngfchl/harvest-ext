@@ -271,6 +271,8 @@ export interface LevelInfo {
  */
 export interface MySite {
     /** 站点名称，唯一标识 */
+    id: number;
+    /** 站点名称，唯一标识 */
     site: string;
     /** 站点昵称 */
     nickname: string;
