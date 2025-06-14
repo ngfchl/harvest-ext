@@ -10,8 +10,8 @@ export const useSettingStore = defineStore("setting", () => {
     })
     const canSave = ref(false);
     const downloaders = ref<Downloader[]>()
-    const webSiteList = ref<{ string: WebSite }>()
-    const mySiteList = ref<{ string: MySite }>()
+    const webSiteList = ref<{ [key: string]: WebSite }>()
+    const mySiteList = ref<{ [key: string]: MySite }>()
 
     // 从存储加载设置
     const getSetting = async () => {
@@ -210,7 +210,7 @@ export const useSettingStore = defineStore("setting", () => {
     const filterSiteByHost = (host: string) => {
         host = replaceMTeamDomainIfMatched(host).toLowerCase();
 
-        return [...webSiteList.value.values()].find(site =>
+        return Object.values(webSiteList.value).find(site =>
             site.url.some(url => {
                 try {
                     return new URL(url).host === host;
@@ -219,6 +219,15 @@ export const useSettingStore = defineStore("setting", () => {
                 }
             })
         );
+    }
+
+    const filterMySiteBySiteName = (siteName: String) => {
+        const mySite = Object.values(mySiteList.value).find(mySite => mySite.site === siteName);
+        console.log(mySite);
+        if (!mySite) {
+            return 0
+        }
+        return mySite.id;
     }
     // // 立即执行初始化，但不阻塞其他代码
     // initialize().catch(error => {
@@ -400,6 +409,7 @@ export const useSettingStore = defineStore("setting", () => {
         canSave,
         filterSiteByHost,
         filterSiteById,
+        filterMySiteBySiteName,
         getCookieString,
         getDownloaderCategorise,
         getDownloaders,
