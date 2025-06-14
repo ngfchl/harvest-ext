@@ -1,4 +1,6 @@
 import {CommonResponse, Settings, SiteInfo, Torrent} from "@/types";
+import {fetchApi} from "@/hooks/requests";
+
 
 export default defineBackground(() => {
     console.log('Hello background!', {id: browser.runtime.id});
@@ -11,6 +13,14 @@ export default defineBackground(() => {
                 switch (request.type) {
                     case "getSiteInfo":
                         response = await getSite(request.payload)
+                        console.log('getSiteInfo执行结果', response)
+                        break;
+                    case "getWebSiteList":
+                        response = await getWebSiteListApi(request.payload)
+                        console.log('getSiteInfo执行结果', response)
+                        break;
+                    case "getMySiteList":
+                        response = await getMySiteListApi(request.payload)
                         console.log('getSiteInfo执行结果', response)
                         break;
                     case "sendSiteInfo":
@@ -63,6 +73,36 @@ export default defineBackground(() => {
     });
 });
 
+
+/**
+ * 获取已有站点列表
+ * @param params
+ */
+const getMySiteListApi = async (params: {
+    setting: Settings,
+}) => {
+    const path = "api/mysite/mysite"
+    return await fetchApi({
+        ...params,
+        path: path,
+        method: 'GET',
+    })
+}
+/**
+ * 获取支持的站点列表
+ * @param params
+ */
+const getWebSiteListApi = async (params: {
+    setting: Settings,
+}) => {
+    const path = "api/mysite/website"
+    return await fetchApi({
+        ...params,
+        path: path,
+        method: 'GET',
+    })
+}
+
 /**
  * 获取站点相关规则
  * @returns {Promise<Object|null>} 站点信息对象或null
@@ -72,41 +112,18 @@ const getSite = async (params: {
     setting: Settings,
     host: string
 }): Promise<CommonResponse<SiteInfo | null> | null> => {
-    const setting: Settings = params.setting;
-    let host: string = params.host;
-    console.log(setting);
-    const path = "api/auth/monkey/get_site/"
-
-    try {
-        // 处理m-team域名特殊规则
-        if (host.includes("m-team")) {
-            host = host.replace("xp.", "api.")
-            host = host.replace("kp.", "api.")
-        }
-        let url = `${setting.baseUrl}${path}${host}`
-
-        const response = await fetch(url, {
-            method: "GET",
-            headers: {
-                "Authorization": `Bearer Monkey.${setting.token}`,
-                "Content-Type": "application/json",
-            },
-        });
-
-        if (!response.ok) {
-            let msg = `服务器连接失败! status: ${response.status}`
-            return CommonResponse.error(-1, msg)
-        }
-
-        const res = await response.json();
-        console.log(res);
-        return res;
-    } catch (error) {
-        let msg = `服务器连接失败！${error}`
-        console.log(msg);
-        return CommonResponse.error(-1, msg)
+    // 处理m-team域名特殊规则
+    let host = params.host;
+    if (host.includes("m-team")) {
+        host = host.replace("xp.", "api.").replace("kp.", "api.");
     }
 
+    return fetchApi({
+        ...params,
+        host, // 使用处理后的host
+        path: `api/auth/monkey/get_site/${host}`,
+        method: "GET",
+    });
 }
 
 /**
@@ -117,32 +134,12 @@ async function sendSiteInfoApi(params: {
     setting: Settings,
     data: string
 }) {
-    const setting: Settings = params.setting;
-    const data: string = params.data;
-    const url = `${setting.baseUrl}api/auth/monkey/save_site`;
-
-    try {
-        const response = await fetch(url, {
-            method: "POST",
-            headers: {
-                Authorization: `Bearer Monkey.${setting.token}`,
-                "Content-Type": "application/x-www-form-urlencoded",
-            },
-            body: data,
-        });
-
-        if (!response.ok) {
-            return CommonResponse.error(-1, `HTTP error! status: ${response.status}`)
-        }
-
-        const res = await response.json();
-        console.log(res);
-        return res
-
-    } catch (error) {
-        console.error('站点信息获取失败', error);
-        throw new Error("站点信息获取失败");
-    }
+    return fetchApi({
+        ...params,
+        path: "api/auth/monkey/save_site",
+        method: "POST",
+        data: params.data // 传递原始字符串数据
+    });
 }
 
 /**
@@ -151,27 +148,11 @@ async function sendSiteInfoApi(params: {
 async function getDownloadersApi(params: {
     setting: Settings,
 }) {
-    const setting: Settings = params.setting;
-    try {
-        const response = await fetch(`${setting.baseUrl}api/option/downloaders`, {
-            method: "GET",
-            headers: {
-                Authorization: `Bearer Monkey.${setting.token}`,
-            },
-        });
-
-        if (!response.ok) {
-            return CommonResponse.error(-1, `HTTP error! status: ${response.status}`)
-        }
-
-        const res = await response.json();
-        console.log(res);
-        return res
-    } catch (error) {
-        console.error('获取下载器列表失败:', error);
-        // 可以添加额外的错误处理逻辑，如显示错误提示
-        return CommonResponse.error(-1, `获取下载器列表失败: ${error}`)
-    }
+    return fetchApi({
+        ...params,
+        path: "api/option/downloaders",
+        method: "GET",
+    });
 }
 
 /**
@@ -181,28 +162,12 @@ const testDownloaderApi = async (params: {
     setting: Settings,
     downloaderId: number
 }) => {
-    const setting: Settings = params.setting;
-    const downloaderId = params.downloaderId;
-    try {
-        const response = await fetch(`${setting.baseUrl}api/option/downloaders/test/${downloaderId}`, {
-            method: "GET",
-            headers: {
-                Authorization: `Bearer Monkey.${setting.token}`,
-            },
-        });
-
-        if (!response.ok) {
-            return CommonResponse.error(-1, `HTTP error! status: ${response.status}`)
-        }
-
-        const res = await response.json();
-        console.log(res);
-        return res
-    } catch (error) {
-        console.error('测试下载器连接失败:', error);
-        return CommonResponse.error(-1, `测试下载器连接失败: ${error}`)
-    }
-};
+    return fetchApi({
+        ...params,
+        path: `api/option/downloaders/test/${params.downloaderId}`,
+        method: "GET",
+    });
+}
 
 /**
  * 获取下载器分类列表
@@ -211,30 +176,11 @@ const getDownloaderCategoriseApi = async (params: {
     setting: Settings,
     downloaderId: number
 }) => {
-    const setting: Settings = params.setting;
-    const downloaderId = params.downloaderId;
-
-    try {
-
-        // 获取分类列表
-        const response = await fetch(`${setting.baseUrl}api/option/downloaders/category/${downloaderId}`, {
-            method: "GET",
-            headers: {
-                Authorization: `Bearer Monkey.${setting.token}`,
-            },
-        });
-
-        if (!response.ok) {
-            return CommonResponse.error(-1, `HTTP error! status: ${response.status}`)
-        }
-
-        const res = await response.json();
-        console.log(res);
-        return res
-    } catch (error) {
-        console.error('获取下载器分类列表失败:', error);
-        return CommonResponse.error(-1, `获取分类列表失败: ${error}`)
-    }
+    return fetchApi({
+        ...params,
+        path: `api/option/downloaders/category/${params.downloaderId}`,
+        method: "GET",
+    });
 }
 
 /**
@@ -250,46 +196,19 @@ const pushTorrentApi = async (params: {
     savePath: string | null,
     urlList: string[],
 }) => {
-    const setting: Settings = params.setting;
-    const downloaderId = params.downloaderId;
-    const mySiteId = params.mySiteId;
-    const category: string = params.category
-    const cookie: string = params.cookie
-    const siteName: string = params.siteName
-    const savePath: string | null = params.savePath
-    const urlList: string[] = params.urlList
-
-    try {
-        const data = JSON.stringify({
-            cookie: cookie,
-            category: category,
-            save_path: savePath,
-            urls: urlList,
-            tags: [siteName, "harvest-monkey"],
-        });
-        console.log(data);
-
-        const response = await fetch(`${setting.baseUrl}api/option/push_monkey/${downloaderId}/${mySiteId}`, {
-            method: "POST",
-            headers: {
-                Authorization: `Bearer Monkey.${setting.token}`,
-                "Content-Type": "application/json", // 添加内容类型头
-            },
-            body: data,
-        });
-
-        if (!response.ok) {
-            return CommonResponse.error(-1, `HTTP error! status: ${response.status}`)
-        }
-
-        const res = await response.json();
-        console.log(res);
-        return res
-    } catch (error) {
-        console.error('推送种子失败:', error);
-        return CommonResponse.error(-1, `推送种子失败: ${error}`)
-    }
-};
+    return fetchApi({
+        ...params,
+        path: `api/option/push_monkey/${params.downloaderId}/${params.mySiteId}`,
+        method: "POST",
+        data: {
+            cookie: params.cookie,
+            category: params.category,
+            save_path: params.savePath,
+            urls: params.urlList,
+            tags: [params.siteName, "harvest-monkey"],
+        },
+    });
+}
 
 /**
  * 辅种助手
@@ -300,31 +219,12 @@ async function repeatInfoApi(params: {
     tid: number
     mySiteId: number,
 }) {
-    const setting: Settings = params.setting;
-    const tid = params.tid;
-    const mySiteId = params.mySiteId;
-
-    try {
-        const response = await fetch(`${setting.baseUrl}api/auth/monkey/iyuu`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/x-www-form-urlencoded",
-                Authorization: `Bearer Monkey.${setting.token}`,
-            },
-            body: `torrent_id=${tid}&site_id=${mySiteId}`,
-        });
-
-        if (!response.ok) {
-            return CommonResponse.error(-1, `HTTP error! status: ${response.status}`)
-        }
-
-        const res = await response.json();
-        console.log(res);
-        return res
-    } catch (error) {
-        console.error('获取种子列表失败:', error);
-        return CommonResponse.error(-1, `获取可辅种信息失败: ${error}`)
-    }
+    return fetchApi({
+        ...params,
+        path: "api/auth/monkey/iyuu",
+        method: "POST",
+        data: `torrent_id=${params.tid}&site_id=${params.mySiteId}`, // 保留原始格式
+    });
 }
 
 /**
@@ -335,30 +235,10 @@ const syncTorrentsApi = async (params: {
     torrents: Torrent[],
     mySiteId: number,
 }) => {
-    try {
-
-        const setting: Settings = params.setting;
-        const mySiteId = params.mySiteId;
-        const torrents = params.torrents
-
-        const response = await fetch(`${setting.baseUrl}api/monkey/parse_torrents`, {
-            method: "POST",
-            headers: {
-                Authorization: `Bearer Monkey.${setting.token}`,
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify(torrents),
-        });
-
-        if (!response.ok) {
-            return CommonResponse.error(-1, `HTTP error! status: ${response.status}`)
-        }
-
-        const res = await response.json();
-        console.log(res);
-        return res
-    } catch (error) {
-        console.error("种子信息同步失败", error);
-        return CommonResponse.error(-1, `种子信息同步失败: ${error}`)
-    }
-};
+    return fetchApi({
+        ...params,
+        path: "api/monkey/parse_torrents",
+        method: "POST",
+        data: params.torrents, // 直接传递torrents数组
+    });
+}
