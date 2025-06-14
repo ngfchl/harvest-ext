@@ -11,6 +11,10 @@ export default defineBackground(() => {
             try {
                 let response;
                 switch (request.type) {
+                    case "openPanelUrl":
+                        response = await openPanelUrl(request.payload)
+                        console.log('getSiteInfo执行结果', response)
+                        break;
                     case "getSiteInfo":
                         response = await getSite(request.payload)
                         console.log('getSiteInfo执行结果', response)
@@ -56,7 +60,7 @@ export default defineBackground(() => {
                         console.log("后台获取到的 Cookie 内容：", cookies)
                         let data = cookies.map(cookie => `${cookie.name}=${cookie.value}`)
                             .join('; ');
-                        response = CommonResponse.success(data)
+                        response = data.length > 0 ? CommonResponse.success(data) : CommonResponse.error(-1, 'Cookie获取失败！')
                         break
                     default: {
                         response = CommonResponse.error(-1, `未知操作！${request.type}`);
@@ -131,14 +135,26 @@ const getSite = async (params: {
  */
 async function sendSiteInfoApi(params: {
     setting: Settings,
-    data: string
+    data: string,
+    importMode: boolean,
 }) {
-    return fetchApi({
+    const response = await fetchApi({
         ...params,
         path: "api/auth/monkey/save_site",
         method: "POST",
-        data: params.data // 传递原始字符串数据
+        body: params.data, // 传递原始字符串数据
+        contentType: "application/x-www-form-urlencoded",
     });
+    if (params.importMode && response.succeed) {
+        const [currentTab] = await browser.tabs.query({
+            active: true,
+            currentWindow: true,
+        });
+        browser.tabs.remove(currentTab.id!)
+        return
+    }
+
+    return response
 }
 
 /**
@@ -199,13 +215,14 @@ const pushTorrentApi = async (params: {
         ...params,
         path: `api/option/push_monkey/${params.downloaderId}/${params.mySiteId}`,
         method: "POST",
-        data: {
+        body: {
             cookie: params.cookie,
             category: params.category,
             save_path: params.savePath,
             urls: params.urlList,
             tags: [params.siteName, "harvest-monkey"],
         },
+        contentType: "application/x-www-form-urlencoded",
     });
 }
 
@@ -239,6 +256,17 @@ const syncTorrentsApi = async (params: {
         ...params,
         path: "api/monkey/parse_torrents",
         method: "POST",
-        data: params.torrents, // 直接传递torrents数组
+        body: params.torrents, // 直接传递torrents数组
+        contentType: "application/x-www-form-urlencoded",
     });
+}
+
+/**
+ * 在新标签打开指定网页 收割机
+ */
+async function openPanelUrl(params: {
+    setting: Settings,
+    host: string,
+}) {
+    await browser.tabs.create({url: params.host});
 }
