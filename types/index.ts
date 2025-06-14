@@ -277,11 +277,11 @@ export interface MySite {
     /** 站点昵称 */
     nickname: string;
     /** 排序ID，默认值为1 */
-    sortId: number;
+    sort_id: number;
 
     /* ------------------ 用户信息 ------------------ */
     /** 用户ID，数字UID或用户名 */
-    userId: string | null;
+    user_id: string | null;
     /** 用户名称 */
     username: string | null;
     /** 注册邮箱 */
@@ -293,7 +293,7 @@ export interface MySite {
     /** Cookies，与UA搭配使用效果更佳 */
     cookie: string;
     /** User-Agent，获取cookie的浏览器UA */
-    userAgent: string;
+    user_agent: string;
     /** RSS地址 */
     rss: string | null;
     /** 种子地址 */
@@ -303,41 +303,41 @@ export interface MySite {
     /** 站点是否可用，默认值为true */
     available: boolean;
     /** 是否开启签到，默认值为true */
-    signIn: boolean;
+    sign_in: boolean;
     /** 是否抓取站点数据，默认值为true */
-    getInfo: boolean;
+    get_info: boolean;
     /** 是否支持辅种，默认值为true */
-    repeatTorrents: boolean;
+    repeat_torrents: boolean;
     /** 是否开启Free刷流，默认值为true */
-    brushFree: boolean;
+    brush_free: boolean;
     /** 是否开启RSS刷流，默认值为false */
-    brushRss: boolean;
+    brush_rss: boolean;
     /** 是否开启拆包刷流，默认值为true */
-    packageFile: boolean;
+    package_file: boolean;
     /** 是否下载HR种子，默认值为false */
-    hrDiscern: boolean;
+    hr_discern: boolean;
     /** 是否开启搜索，默认值为true */
-    searchTorrents: boolean;
+    search_torrents: boolean;
     /** 是否在首页展示，默认值为true */
-    showInDash: boolean;
+    show_in_dash: boolean;
     /** 代理服务器地址 */
     proxy: string | null;
     /** 删种规则，JSON格式 */
-    removeTorrentRules: object | null;
+    remove_torrent_rules: object | null;
     /** 访问地址 */
     mirror: string | null;
 
     /* ------------------ 用户数据（自动拉取） ------------------ */
     /** 注册时间，默认值为当前时间 */
-    timeJoin: Date;
+    time_join: Date;
     /** 最后访问时间 */
-    latestActive: Date | null;
+    latest_active: Date | null;
     /** 短消息数量，默认值为0 */
     mail: number;
     /** 公告数量，默认值为0 */
     notice: number;
     /** 签到信息，JSON格式 */
-    signInfo: SignInfoByDate;
+    sign_info: SignInfoByDate;
     /** 站点数据，JSON格式 */
     status: StatusByDate;
 }
