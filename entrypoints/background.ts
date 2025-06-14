@@ -120,7 +120,6 @@ const getSite = async (params: {
 
     return fetchApi({
         ...params,
-        host, // 使用处理后的host
         path: `api/auth/monkey/get_site/${host}`,
         method: "GET",
     });
@@ -223,7 +222,8 @@ async function repeatInfoApi(params: {
         ...params,
         path: "api/auth/monkey/iyuu",
         method: "POST",
-        data: `torrent_id=${params.tid}&site_id=${params.mySiteId}`, // 保留原始格式
+        body: `torrent_id=${params.tid}&site_id=${params.mySiteId}`, // 保留原始格式
+        contentType: "application/x-www-form-urlencoded",
     });
 }
 
