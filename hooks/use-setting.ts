@@ -1,13 +1,17 @@
-import {CommonResponse, Settings, SiteInfo, Torrent} from "@/types";
+import {CommonResponse, Downloader, MySite, Settings, SiteInfo, Torrent, WebSite} from "@/types";
 import {defineStore} from "pinia";
 import {ref} from "vue";
 import {message} from "ant-design-vue";
 
 export const useSettingStore = defineStore("setting", () => {
     const setting = ref<Settings>({
-        baseUrl: '', token: ''
+        baseUrl: 'http://127.0.0.1:8000', token: '',
+        imgUrl: 'https://api.r10086.com/%E6%A8%B1%E9%81%93%E9%9A%8F%E6%9C%BA%E5%9B%BE%E7%89%87api%E6%8E%A5%E5%8F%A3.php?%E5%9B%BE%E7%89%87%E7%B3%BB%E5%88%97=%E5%B0%91%E5%A5%B3%E5%86%99%E7%9C%9F5'
     })
     const canSave = ref(false);
+    const downloaders = ref<Downloader[]>()
+    const webSiteList = ref<WebSite[]>([])
+    const mySiteList = ref<MySite[]>([])
 
     // 从存储加载设置
     const getSetting = async () => {
@@ -41,13 +45,160 @@ export const useSettingStore = defineStore("setting", () => {
             return false;
         }
     };
-
-
     // 自动初始化 - 正确处理Promise
     const initialize = async () => {
         await getSetting();
     };
 
+    /**
+     * 缓存数据到本地存储
+     * @param key 缓存键名
+     * @param data 要缓存的数据
+     * @param expireTime 过期时间(毫秒)，默认24小时
+     */
+    const saveToCache = async (key: string, data: any, expireTime: number = 24 * 60 * 60 * 1000) => {
+        const cacheData = {
+            data,
+            timestamp: Date.now(),
+            expireTime
+        };
+        await storage.setItem(key, cacheData);
+        console.log(`数据已缓存到本地: ${key}`);
+    }
+
+    /**
+     * 从本地缓存获取数据
+     * @param key 缓存键名
+     * @returns 缓存数据或null
+     */
+    const getFromCache = async (key: string,): Promise<any | null> => {
+        const result = await storage.getItem(key);
+        const cacheData = result[key];
+
+        if (!cacheData) {
+            console.log(`缓存未找到: ${key}`);
+            return null;
+        }
+
+        // 检查缓存是否过期
+        const isExpired = Date.now() > cacheData.timestamp + cacheData.expireTime;
+        if (isExpired) {
+            console.log(`缓存已过期: ${key}`);
+            await browser.storage.local.remove(key);
+            return null;
+        }
+
+        console.log(`使用本地缓存: ${key}`);
+        return cacheData.data;
+    }
+    /**
+     * 尝试从本地缓存加载服务器数据
+     * @param forceRefresh 是否强制刷新不使用缓存
+     * @returns 如果成功从缓存加载返回true，否则返回false
+     */
+    const loadFromCacheIfAvailable = async (forceRefresh: boolean): Promise<boolean> => {
+        console.log('正在读取本地缓存数据')
+        // 从本地缓存获取数据
+        const [cachedSupportedSites, cachedMySites, cachedDownloaders] = await Promise.all([
+            getFromCache('local:supportedSites', forceRefresh),
+            getFromCache('local:mySites', forceRefresh),
+            getFromCache('local:downloaders', forceRefresh)
+        ]);
+
+        // 如果缓存存在且未过期，直接使用
+        if (!forceRefresh && cachedSupportedSites && cachedMySites && cachedDownloaders) {
+            webSiteList.value = cachedSupportedSites;
+            mySiteList.value = cachedMySites;
+            downloaders.value = cachedDownloaders;
+            console.log('使用本地缓存数据');
+            return;
+        }
+        message.warning('缓存数据已过期，正在重新加载数据')
+        await cacheServerData()
+    }
+
+    const cacheServerData = async () => {
+        try {
+            console.log('开始缓存服务器数据...');
+
+            // 缓存不存在或已过期，重新获取数据
+            const [supportedSites, mySites, downloaders] = await Promise.all([
+                getWebSiteList(),
+                getMySiteList(),
+                getDownloaders()
+            ]);
+
+            // 验证并处理结果
+            const validateResult = (result, action) => {
+                if (!result.succeed) {
+                    console.log(`${action}失败:`, result.msg);
+                    throw new Error(`${action}失败`);
+                }
+                return result.data;
+            };
+
+            // 更新状态
+            const supportedSitesData = validateResult(supportedSites, '获取支持的站点列表');
+            const mySitesData = validateResult(mySites, '获取已添加站点列表');
+            const downloadersData = validateResult(downloaders, '获取下载器列表');
+
+            webSiteList.value = supportedSitesData;
+            mySiteList.value = mySitesData;
+            downloaders.value = downloadersData;
+
+            // 将数据保存到本地缓存
+            await Promise.all([
+                saveToCache('local:supportedSites', supportedSitesData),
+                saveToCache('local:mySites', mySitesData),
+                saveToCache('local:downloaders', downloadersData)
+            ]);
+
+            console.log('所有数据获取并缓存成功！');
+            message.success("所有数据获取并缓存成功");
+        } catch (error) {
+            console.error('缓存服务器数据失败', error);
+            message.error(`缓存服务器数据失败:${error}`);
+        }
+    }
+
+    /**
+     * 获取已添加站点列表
+     */
+    const getWebSiteList = async () => {
+        const response = await browser.runtime.sendMessage({
+            type: 'getWebSiteList',
+            payload: {
+                setting: setting.value,
+            }
+        });
+        if (!response.succeed) {
+            return response;
+        }
+        return CommonResponse.success(response.data.reduce((acc, site) => {
+            acc[site.name] = site;
+            return acc;
+        }, {}))
+    }
+    /**
+     * 获取已添加站点列表
+     */
+    const getMySiteList = async () => {
+        const response = await browser.runtime.sendMessage({
+            type: 'getMySiteList',
+            payload: {
+                setting: setting.value,
+            }
+        });
+        if (!response.succeed) {
+            return response;
+        }
+        return CommonResponse.success(response.data.reduce((acc, site) => {
+            // 创建浅拷贝并立即删除不需要的属性
+            const {status, sign_info, ...processedSite} = site;
+            acc[site.id] = processedSite;
+            return acc;
+        }, {}))
+    }
     // // 立即执行初始化，但不阻塞其他代码
     // initialize().catch(error => {
     //     console.error("初始化设置失败:", error);
@@ -186,6 +337,13 @@ export const useSettingStore = defineStore("setting", () => {
         })
     }
     const testServer = async () => {
+        if (!setting.value.baseUrl.startsWith('https://') && !setting.value.baseUrl.startsWith('http://')) {
+            message.warn("服务器地址填写出错了，请以 http:// 或 https:// 开头");
+            return;
+        }
+        if (!setting.value.baseUrl.endsWith('/')) {
+            setting.value.baseUrl = `${setting.value.baseUrl}/`;
+        }
         const res = await getSite('1ptba.com')
         if (!res?.succeed) {
             // message.error('服务器连接失败！');
@@ -196,27 +354,44 @@ export const useSettingStore = defineStore("setting", () => {
         console.log('服务器连接成功！');
         canSave.value = true;
     }
+
+    /**
+     * 替换形如 xxxxx.m-team.cc 或 .io 的域名为主域名 api.m-team.cc/io
+     * 如果不匹配，则原样返回。
+     * @param host 需要处理的域名
+     * @returns 处理后的域名
+     */
+    function replaceMTeamDomainIfMatched(host: string): string {
+        const pattern = /^([^/.\s]+)\.m-team\.(cc|io)$/;
+        const match = host.match(pattern);
+
+        if (match) {
+            const tld = match[2]; // 获取顶级域名 (cc/io)
+            return `api.m-team.${tld}`;
+        }
+
+        return host;
+    }
+
     return {
-        setting,
+        cacheServerData,
         canSave,
-        getSetting,
-        saveSetting,
-        getSite,
-        testServer,
-        sendSiteInfo,
-        getDownloaders,
         getCookieString,
-        testDownloader,
         getDownloaderCategorise,
+        getDownloaders,
+        getSetting,
+        getSite,
+        loadFromCacheIfAvailable,
         pushTorrent,
         repeatInfo,
+        saveSetting,
+        sendSiteInfo,
+        setting,
         syncTorrents,
-        // 可选：添加计算属性方便访问单个字段
-        get baseUrl() {
-            return setting.value.baseUrl;
-        },
-        get token() {
-            return setting.value.token;
-        },
+        testDownloader,
+        testServer,
+        mySiteList,
+        webSiteList,
+        downloaders,
     };
 })
