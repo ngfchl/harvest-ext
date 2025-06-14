@@ -12,7 +12,7 @@ export const useSettingStore = defineStore("setting", () => {
     const downloaders = ref<Downloader[]>()
     const webSiteList = ref<{ [key: string]: WebSite }>()
     const mySiteList = ref<{ [key: string]: MySite }>()
-
+    const importMode = ref<boolean>(false)
     // 从存储加载设置
     const getSetting = async () => {
         try {
@@ -229,6 +229,67 @@ export const useSettingStore = defineStore("setting", () => {
         }
         return mySite.id;
     }
+
+    const filterToAddSite = async () => {
+        console.log('筛选已添加的站点')
+        await loadFromCacheIfAvailable()
+        const existingSites = new Set(Object.values(mySiteList.value).map(site => site.site));
+        console.log('已添加的站点:', existingSites);
+        return Object.fromEntries(
+            Object.entries(webSiteList.value).filter(([key, site]) => !existingSites.has(key) && site.alive)
+        );
+    }
+
+    const autoAddSites = async () => {
+        importMode.value = true;
+        const toAddSites = await filterToAddSite()
+        console.log('未添加的站点:', toAddSites)
+        for (const site of Object.values(toAddSites)) {
+            await addSingleSite(site);
+        }
+        importMode.value = false;
+    }
+
+    const addSingleSite = async (site: WebSite) => {
+        console.log(`正在添加站点： ${site.name} `);
+        for (const url of site.url) {
+            try {
+                // 从 URL 生成host
+                const {host} = new URL(url);
+                // 使用 host 获取站点 Cookie
+                const response = await getCookieString(host);
+                // 筛选 Cookie，无效的 Cookie 直接排除
+                // 有效站点挨个打开标签页【控制面板页面】，自动同步信息
+                if (response.succeed) {
+                    // 保存Cookie到插件存储（推荐使用chrome.storage）
+                    // await storage.setItem(<StorageItemKey>host!, response.data);
+                    let panelUrl: string;
+                    if (site.page_control_panel.includes("{}")) {
+                        panelUrl = url
+                    } else {
+                        // 构建完整URL（处理路径格式）
+                        panelUrl = `${url}${site.page_control_panel}`;
+                    }
+                    // 在新标签页打开（浏览器插件API）
+                    console.log('正在打开自动同步页面:', url);
+
+                    const res = await browser.runtime.sendMessage({
+                        type: 'openPanelUrl',
+                        payload: {
+                            setting: setting.value,
+                            host: panelUrl,
+                        }
+                    });
+                    break; // 成功后退出
+                }
+            } catch (error) {
+                console.error(`处理URL ${url}时出错:`, error);
+            }
+        }
+
+        console.warn('所有URL均未能获取有效Cookie');
+    };
+
     // // 立即执行初始化，但不阻塞其他代码
     // initialize().catch(error => {
     //     console.error("初始化设置失败:", error);
@@ -284,6 +345,7 @@ export const useSettingStore = defineStore("setting", () => {
             payload: {
                 setting: setting.value,
                 data: data,
+                importMode: importMode.value,
             }
         })
     }
@@ -407,6 +469,7 @@ export const useSettingStore = defineStore("setting", () => {
         initialize,
         cacheServerData,
         canSave,
+        autoAddSites,
         filterSiteByHost,
         filterSiteById,
         filterMySiteBySiteName,
