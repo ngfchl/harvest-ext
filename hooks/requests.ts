@@ -9,19 +9,24 @@ export const fetchApi = async (params: {
     path: string,
     method: string,
     data?: any,
+    body?: any,
+    contentType?: any,
 }) => {
-    const {setting, path, method = 'Get', data} = params;
+    const {setting, path, method = 'Get', data, body, contentType = "application/json",} = params;
     try {
         let url = `${setting.baseUrl}${path}`;
         const fetchOptions: RequestInit = {
             method,
             headers: {
                 "Authorization": `Bearer Monkey.${setting.token}`,
-                "Content-Type": "application/json",
+                "Content-Type": contentType,
             },
         };
         if (data) {
             fetchOptions.body = JSON.stringify(data);
+        }
+        if (body) {
+            fetchOptions.body = body;
         }
         const response = await fetch(url, fetchOptions);
         if (!response.ok) {

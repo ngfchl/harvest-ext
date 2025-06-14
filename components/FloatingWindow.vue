@@ -11,14 +11,17 @@ import {
 } from '@ant-design/icons-vue'
 import {useSettingStore} from "@/hooks/use-setting";
 import {storeToRefs} from "pinia";
-import {CommonResponse} from "@/types";
+import {Category, CommonResponse, RepeatInfo, Torrent} from "@/types";
 
 const settingStore = useSettingStore()
 const {
-  setting,
+  setting, downloaders,
 } = storeToRefs(settingStore)
 const {
   getSite,
+  initialize,
+  filterSiteByHost,
+  filterSiteById,
   sendSiteInfo,
   getDownloaders,
   getCookieString,
@@ -27,6 +30,7 @@ const {
   pushTorrent,
   repeatInfo,
   syncTorrents,
+  loadFromCacheIfAvailable,
 } = settingStore
 
 const drawer = ref(false)
@@ -35,67 +39,10 @@ const repeat_info = ref<RepeatInfo>({
   can_list: []
 })
 
-interface Site {
-  'id': number
-  'name': string
-  'url': string
-  'logo': string
-}
-
-interface RepeatInfo {
-  url_list: {
-    download_url: string
-    details_url: string
-    site: Site
-  }[]
-  can_list: Site[]
-}
-
-interface Torrent {
-  site_id: number
-  tid: number
-  title: string
-  category: string
-  completers?: string
-  leechers?: string
-  hr: boolean
-  magnet_url: string
-  poster: string
-  published: string
-  sale_expire: string
-  sale_status: string
-  seeders: string
-  subtitle: string
-  tags: string
-  size: string
-  hash_string?: string
-  douban_url?: string
-  imdb_url?: string
-  files_count?: string
-}
-
-export interface Downloader {
-  id: number
-  name: string
-  username?: string
-  password?: string
-  http?: 'http' | 'https'
-  host?: string
-  port?: number
-  sort_id?: number
-  category: string
-}
-
-export interface Category {
-  name: string
-  savePath: string
-}
-
 message.config({
   top: `50px`,
 });
 const activeKey = ref<number>();
-const downloaders = ref<Downloader[]>([])
 const user_detail_page = ref(false)
 const torrent_list_page = ref(false)
 const torrent_detail_page = ref(false)
@@ -150,12 +97,27 @@ const onMouseUp = () => {
     harvestWrap.value!.style.left = "0px";
   }
 };
-
+const loadLocalStorage = () => {
+  mySiteId.value = localStorage.getItem('mySite');
+  siteInfo.value = localStorage.getItem('website');
+}
 onMounted(async () => {
+  // 处理 message 不显示的 BUG
   message.config({
     getContainer: () => document.querySelector('harvest-ui')?.shadowRoot?.querySelector('#message-container') || document.body,
   });
-  await getSiteInfo()
+  // 初始化缓存数据
+  await initialize();
+  // 从本地存储加载站点信息
+  loadLocalStorage();
+  // 如果站点 ID 不存在，使用站点 host 去查找站点配置文件
+  if (!mySiteId.value) {
+    siteInfo.value = await filterSiteByHost(location.host)
+  }
+  // 如果站点 Id 存在
+  siteInfo.value = await filterSiteById(mySiteId.value);
+
+  // await getSiteInfo()
   // 在 Shadow DOM 中添加事件监听器
   document.addEventListener("mousemove", onMouseMove);
   document.addEventListener("mouseup", onMouseUp);
@@ -205,15 +167,13 @@ async function go_to_control_page() {
 }
 
 async function download_to() {
-  if (downloaders.value.length <= 0) {
-    await getDownloadersList()
-  }
+
   await get_torrent_detail()
   console.log(torrents.value)
   singleTorrent.value = torrents.value[0]
   await generate_magnet_url(false)
   modal_title.value = '正在下载当前种子...'
-  showModal()
+  await showModal()
 }
 
 const showModal = async () => {
@@ -233,13 +193,11 @@ const showModal = async () => {
 };
 
 async function download_all() {
-  if (downloaders.value.length <= 0) {
-    await getDownloadersList()
-  }
+
   await get_torrent_id_list()
   await generate_magnet_url(false)
   // modal_title.value = `正在下载本页所有${url_list.value.length}条种子...`
-  showModal()
+  await showModal()
 }
 
 const handleOk = (e: MouseEvent) => {
@@ -248,14 +206,11 @@ const handleOk = (e: MouseEvent) => {
 };
 
 async function download_free() {
-  if (downloaders.value.length <= 0) {
-    await getDownloadersList()
-  }
   await get_torrent_id_list()
   // await get_torrent_list()
   await generate_magnet_url(true)
   // modal_title.value = `正在下载本页${url_list.value.length}条免费种子...`
-  showModal()
+  await showModal()
 }
 
 /**
@@ -695,7 +650,7 @@ async function get_torrent_detail() {
   let hr = xpath(siteInfo.value.detail_hr_rule, document).snapshotItem(0)
   let tid = location.search.match(/id=(\d+)/)![1]
 
-
+  console.log(hash_string)
   let tag = []
   for (let i = 0; i < tags.snapshotLength; i++) {
     tag.push(tags.snapshotItem(i)!.textContent!.trim())
@@ -720,46 +675,6 @@ async function get_torrent_detail() {
   }
   torrents.value.push(torrent)
 }
-
-/**
- * 获取下载器列表
- */
-async function getDownloadersList() {
-  try {
-    console.log('开始获取下载器列表')
-    const res = await getDownloaders()
-    if (!res.succeed) {
-      console.log(res.msg);
-      return; // 保持与原代码一致的行为
-    }
-    downloaders.value = res.data
-    console.log('下载器列表获取成功！', res.msg);
-    console.log(res);
-    // message.success('收割机提醒您：' + res.msg);
-  } catch (error) {
-    console.error('获取下载器列表失败', error);
-    throw new Error("获取下载器列表失败");
-  }
-}
-
-/**
- * 测试下载器连接
- */
-const test_connect = async (downloaderId: number) => {
-  try {
-    const res: CommonResponse<any> = await testDownloader(downloaderId);
-    console.log(res);
-
-    if (!res.succeed) {
-      message.error(res.msg);
-    } else {
-      message.success(res.msg);
-    }
-  } catch (error) {
-    console.error('测试下载器连接失败:', error);
-    message.error('网络请求失败，请检查网络连接');
-  }
-};
 
 /**
  * 获取下载器分类列表
@@ -920,10 +835,11 @@ const getModalContainer = (id: string = 'modal-container') => {
     <div style="position:relative;">
       <a-image
           :preview="false"
+          :src="setting.imgUrl"
           class="image"
-          fallback="https://picsum.photos/200/200/?random"
-          src="https://api.r10086.com/%E6%A8%B1%E9%81%93%E9%9A%8F%E6%9C%BA%E5%9B%BE%E7%89%87api%E6%8E%A5%E5%8F%A3.php?%E5%9B%BE%E7%89%87%E7%B3%BB%E5%88%97=%E5%B0%91%E5%A5%B3%E5%86%99%E7%9C%9F5"
-          width="110"/>
+          fallback="https://picsum.photos/110/55/?random"
+          width="110"
+      />
       <DragOutlined class="move-item" @mousedown="onMouseDown"/>
     </div>
     <a-space direction="vertical">
@@ -1056,7 +972,7 @@ const getModalContainer = (id: string = 'modal-container') => {
           v-model:activeKey="activeKey"
           :bordered="false"
           accordion
-          expand-icon-position="end"
+          expand-icon-position="right"
           style="background: rgb(255, 255, 255)"
           @change="getDownloaderCategoryList">
         <a-collapse-panel v-for="d in downloaders" :key="d.id" style="font-size: 16px;">
@@ -1171,6 +1087,7 @@ const getModalContainer = (id: string = 'modal-container') => {
 .harvest-wrap > img, .image {
   border-radius: 2px;
   width: 110px;
+  height: 55px;
 }
 
 .ant-form {
