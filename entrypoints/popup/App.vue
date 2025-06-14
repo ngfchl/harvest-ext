@@ -13,6 +13,7 @@ const {
   getSetting,
   testServer,
   autoAddSites,
+  autoSyncCookie,
   cacheServerData,
 } = settingStore
 // const mySiteId = ref<number>(0)
@@ -141,6 +142,7 @@ onMounted(async () => {
               <a-button
                   block
                   type="primary"
+                  @click="autoSyncCookie"
               >
                 一键同步
               </a-button>
