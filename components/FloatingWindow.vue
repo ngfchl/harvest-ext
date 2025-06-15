@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import {onMounted, ref} from "vue";
+import {onMounted, ref,} from "vue";
 import {message} from "ant-design-vue"
 import {
   ArrowDownOutlined,
@@ -301,7 +301,13 @@ async function init_button() {
       location.href.includes('/users/')
   ) {
     console.log('当前为个人信息页')
-    await syncCookie()
+    await nextTick(async () => {
+      // 在 DOM 元素渲染完成后执行的代码
+      // 可以在这里操作已经渲染的 DOM 元素或执行其他需要在 DOM 渲染完成后执行的逻辑
+      console.log('DOM 已更新');
+      await syncCookie()
+    });
+
   }
 
   // if (location.pathname.includes(siteInfo.value.page_control_panel) //尝试与配置文件中的信息绑定
@@ -314,7 +320,12 @@ async function init_button() {
   ) {
     console.log('当前为控制面板页')
     user_detail_page.value = true
-    await syncCookie()
+    await nextTick(async () => {
+      // 在 DOM 元素渲染完成后执行的代码
+      // 可以在这里操作已经渲染的 DOM 元素或执行其他需要在 DOM 渲染完成后执行的逻辑
+      console.log('DOM 已更新');
+      await syncCookie()
+    });
   }
 }
 
@@ -382,10 +393,12 @@ function validateEmail(email: string) {
 const getEmail = () => {
   try {
     let emailString = document.evaluate(siteInfo.value.my_email_rule, document).iterateNext()!.textContent
+    console.log('解析邮箱中：', emailString)
     if (!emailString) {
       return false
     }
     let email = extractFirstEmail(emailString)
+    console.log('提取邮箱', email)
     if (!email || !validateEmail(email)) {
       return false
     }
@@ -447,7 +460,7 @@ async function getSiteData() {
     console.error('用户ID解析失败！')
     return CommonResponse.error(-1, '用户ID解析失败！')
   }
-
+  console.log('站点 UID 解析成功：', user_id)
   /* 处理馒头域名 */
   let host = `${document.location.origin}/`
   if (host.includes("m-team")) {
@@ -464,22 +477,22 @@ async function getSiteData() {
     siteData += `&nickname=${siteInfo.value.name}&mirror=${host}`
   }
   let passkey = getPasskey()
+  console.log("passkey抓取结果：", passkey)
   if (passkey != false) {
-    console.log(passkey)
     siteData += `&passkey=${passkey}`
   }
   let time_join = getTimeJoin()
-  console.log(time_join)
+  console.log("注册时间抓取结果：", time_join)
   if (time_join != false) {
     siteData += `&time_join=${time_join}`
   }
   let username = getUsername()
-  console.log(username)
+  console.log("用户名抓取结果：", username)
   if (username != false) {
     siteData += `&username=${username}`
   }
   let email = getEmail()
-  console.log(email)
+  console.log("注册邮箱抓取结果：", email)
   if (email != false) {
     siteData += `&email=${email}`
   }
