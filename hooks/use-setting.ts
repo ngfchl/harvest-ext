@@ -21,6 +21,10 @@ export const useSettingStore = defineStore("setting", () => {
             if (data) {
                 setting.value = data as Settings;
                 console.log(setting.value.token);
+                if (!setting.value.baseUrl || !setting.value.token) {
+                    message.error("请先在插件中配置服务器与授权信息！");
+                    return CommonResponse.error(-1, "请先在插件中配置服务器与授权信息！");
+                }
                 return CommonResponse.success(data);
             }
             return CommonResponse.error(-1, '获取收割机服务器设置失败！');
