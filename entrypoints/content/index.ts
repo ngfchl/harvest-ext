@@ -204,10 +204,7 @@ export default defineContentScript({
         'https://pt.xingyungept.org/*',
         // 2025-06-11
         'https://pt.ourhelp.club/*',
-        // 2025-06-10
-        'https://pt.xingyungept.org/*',
-        // 2025-06-11
-        'https://pt.ourhelp.club/*',
+        // 2025-06-15
         'https://chdbits.co/*',
         'https://gd.chddiy.xyz/*',
     ],
