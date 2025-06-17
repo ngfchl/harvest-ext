@@ -5,14 +5,12 @@ export default defineConfig({
     vite: (env) => {
         return {
             plugins: [],
-
         }
     },
-
     manifest: {
         name: '收割机助手',
         description: '在收割机支持的网站上显示操作窗口',
-        version: '1.0.0',
+        version: '0.1.1',
         permissions: ["storage", "fetch", "cookies", "activeTab"],
         host_permissions: [
             "*://*/*",
@@ -22,5 +20,12 @@ export default defineConfig({
             // sandbox: "allow-same-origin allow-scripts"
         },
     },
-
+    // 打包配置
+    zip: {
+        // 自定义 ZIP 文件名模板
+        artifactTemplate: '收割机助手-v{{version}}-{{browser}}.zip',
+        // 其他可选配置
+        // name: '自定义名称', // 覆盖默认的项目名称
+        // compressionLevel: 9, // 压缩级别 (0-9)
+    },
 });
