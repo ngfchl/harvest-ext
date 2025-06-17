@@ -207,6 +207,8 @@ export default defineContentScript({
         // 2025-06-15
         'https://chdbits.co/*',
         'https://gd.chddiy.xyz/*',
+        //2025-06017
+        'https://www.ptskit.org/*',
     ],
     // 2. Set cssInjectionMode
     cssInjectionMode: 'ui',
