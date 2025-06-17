@@ -212,13 +212,13 @@ const pushTorrentApi = async (params: {
         ...params,
         path: `api/option/push_monkey/${params.downloaderId}/${params.mySiteId}`,
         method: "POST",
-        body: {
+        body: JSON.stringify({
             cookie: params.cookie,
             category: params.category,
             save_path: params.savePath,
             urls: params.urlList,
             tags: [params.siteName, "harvest-monkey"],
-        },
+        }),
         contentType: "application/x-www-form-urlencoded",
     });
 }
@@ -253,7 +253,7 @@ const syncTorrentsApi = async (params: {
         ...params,
         path: "api/monkey/parse_torrents",
         method: "POST",
-        body: params.torrents, // 直接传递torrents数组
+        body: JSON.stringify(params.torrents), // 直接传递torrents数组
         contentType: "application/x-www-form-urlencoded",
     });
 }
