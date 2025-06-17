@@ -30,6 +30,7 @@ onMounted(async () => {
   console.log("打开弹出页面！")
   await getSetting()
   console.log(setting.value)
+  importMode.value = await storage.getItem('local:importMode') || false
 });
 
 
