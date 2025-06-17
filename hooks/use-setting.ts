@@ -12,6 +12,7 @@ export const useSettingStore = defineStore("setting", () => {
     const downloaders = ref<Downloader[]>()
     const webSiteList = ref<{ [key: string]: WebSite }>()
     const mySiteList = ref<{ [key: string]: MySite }>()
+    const importMode = ref<boolean>(false)
 
     // 从存储加载设置
     const getSetting = async () => {
@@ -247,25 +248,30 @@ export const useSettingStore = defineStore("setting", () => {
         const siteList = Object.values(mySiteList.value!);
         console.log('需要同步的站点：', siteList);
         for (const site of siteList) {
-            setTimeout(async () => {
-                console.log(`正在同步的站点：${site.nickname} ==> ${site.site}`)
-                let {host} = new URL(site.mirror!);
-                const response = await getCookieString(host);
-                if (response.succeed) {
-                    // 保存Cookie到插件存储（推荐使用chrome.storage）
-                    let siteData = `user_id=${site.user_id}&site=${site.site}&cookie=${response.data}&user_agent=${window.navigator.userAgent}`
-                    const res = await sendSiteInfo(siteData, true)
-                    console.log(res.msg)
-                }
-            }, 2000)
+            console.log(`正在同步的站点：${site.nickname} ==> ${site.site}`)
+            let {host} = new URL(site.mirror!);
+            const response = await getCookieString(host);
+            if (response.succeed) {
+                // 保存Cookie到插件存储（推荐使用chrome.storage）
+                let siteData = `user_id=${site.user_id}&site=${site.site}&cookie=${response.data}&user_agent=${window.navigator.userAgent}`
+                const res = await sendSiteInfo(siteData)
+                console.log(res.msg)
+            }
         }
         await cacheServerData()
+    }
+
+    const switchImportMode = async (value: boolean) => {
+        importMode.value = value;
+        await storage.setItem('local:importMode', value)
     }
     const autoAddSites = async () => {
         const toAddSites = await filterToAddSite()
         console.log('未添加的站点:', toAddSites)
         for (const site of Object.values(toAddSites)) {
-            await addSingleSite(site);
+            setTimeout(async () => {
+                await addSingleSite(site);
+            }, 500);
         }
     }
 
@@ -357,9 +363,9 @@ export const useSettingStore = defineStore("setting", () => {
     /**
      * 保存站点信息到服务器
      * @param data
-     * @param importMode
      */
-    const sendSiteInfo = async (data: string, importMode: boolean = false) => {
+    const sendSiteInfo = async (data: string) => {
+        const importMode: boolean = await storage.getItem('local:importMode') || false
         console.log('站点导入模式', importMode);
         return await browser.runtime.sendMessage({
             type: 'sendSiteInfo',
@@ -488,6 +494,8 @@ export const useSettingStore = defineStore("setting", () => {
 
     return {
         initialize,
+        importMode,
+        switchImportMode,
         cacheServerData,
         canSave,
         autoAddSites,

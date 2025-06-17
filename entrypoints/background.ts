@@ -6,7 +6,7 @@ export default defineBackground(() => {
     console.log('Hello background!', {id: browser.runtime.id});
     // 监听消息
     browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
-        console.log('后台接收到的参数：', request.type, request.payload);
+        console.log('后台接收到的参数：', request.type, request.payload, 'sender:', sender);
         (async () => {
             try {
                 let response;
@@ -28,7 +28,7 @@ export default defineBackground(() => {
                         console.log('getSiteInfo执行结果', response)
                         break;
                     case "sendSiteInfo":
-                        response = await sendSiteInfoApi(request.payload)
+                        response = await sendSiteInfoApi(request.payload, sender)
                         console.log('sendSiteInfoApi执行结果', response)
                         break;
                     case "getDownloaders":
@@ -132,12 +132,13 @@ const getSite = async (params: {
 /**
  * 同步站点数据到服务器
  * @param params
+ * @param sender
  */
 async function sendSiteInfoApi(params: {
     setting: Settings,
     data: string,
     importMode: boolean,
-}) {
+}, sender) {
     const response = await fetchApi({
         ...params,
         path: "api/auth/monkey/save_site",
@@ -145,13 +146,9 @@ async function sendSiteInfoApi(params: {
         body: params.data, // 传递原始字符串数据
         contentType: "application/x-www-form-urlencoded",
     });
-    if (params.importMode && response.succeed) {
-        const [currentTab] = await browser.tabs.query({
-            active: true,
-            currentWindow: true,
-        });
-        browser.tabs.remove(currentTab.id!)
-        return
+    console.log(`站点添加结果：${params.importMode} == ${response.succeed}`);
+    if (response.succeed && params.importMode) {
+        browser.tabs.remove(sender.tab?.id)
     }
 
     return response

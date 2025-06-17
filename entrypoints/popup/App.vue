@@ -7,6 +7,7 @@ const settingStore = useSettingStore()
 const {
   setting,
   canSave,
+  importMode,
 } = storeToRefs(settingStore)
 const {
   getSetting,
@@ -14,6 +15,7 @@ const {
   autoAddSites,
   autoSyncCookie,
   cacheServerData,
+  switchImportMode,
 } = settingStore
 // const mySiteId = ref<number>(0)
 // const siteInfo = ref();
@@ -108,21 +110,6 @@ onMounted(async () => {
                 数据缓存
               </a-button>
             </a-popover>
-          </a-space>
-          <a-space v-if="canSave">
-            <a-popover title="一键添加站点">
-              <template #content>
-                <p>筛选未添加的站点列表，同时在本地的 Cookie 信息中筛选访问过的站点，抓取 Cookie 和
-                  UserAgent，同步到收割机服务器，然后批量打开</p>
-              </template>
-              <a-button
-                  block
-                  type="primary"
-                  @click="autoAddSites"
-              >
-                一键添加
-              </a-button>
-            </a-popover>
             <a-popover title="一键同步Cookie">
               <template #content>
                 <p>一键同步已添加站点的 Cookie 信息，此功能仅同步 Cookie 和 UserAgent</p>
@@ -135,6 +122,28 @@ onMounted(async () => {
                 一键同步
               </a-button>
             </a-popover>
+          </a-space>
+          <a-space v-if="canSave">
+            <a-switch
+                v-model:checked="importMode"
+                checked-children="导入模式:开"
+                un-checked-children="导入模式:关" @change="switchImportMode"
+            />
+            <a-popover title="一键添加站点">
+              <template #content>
+                <p>筛选未添加的站点列表，同时在本地的 Cookie 信息中筛选访问过的站点，抓取 Cookie 和
+                  UserAgent，同步到收割机服务器，然后批量打开</p>
+              </template>
+              <a-button
+                  v-if="importMode"
+                  block
+                  type="primary"
+                  @click="autoAddSites"
+              >
+                一键添加
+              </a-button>
+            </a-popover>
+
           </a-space>
         </a-space>
       </a-layout-content>
