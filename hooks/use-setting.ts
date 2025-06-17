@@ -12,7 +12,7 @@ export const useSettingStore = defineStore("setting", () => {
     const downloaders = ref<Downloader[]>()
     const webSiteList = ref<{ [key: string]: WebSite }>()
     const mySiteList = ref<{ [key: string]: MySite }>()
-    const importMode = ref<boolean>(false)
+
     // 从存储加载设置
     const getSetting = async () => {
         try {
@@ -35,13 +35,11 @@ export const useSettingStore = defineStore("setting", () => {
     };
 
     // 保存设置到存储
-    const saveSetting = async (newSetting: Settings) => {
+    const saveSetting = async () => {
         try {
-            // 更新状态
-            setting.value = newSetting;
             // 保存到存储
-            await storage.setItem("local:setting", newSetting);
-            message.success("服务器信息保存成功！");
+            await storage.setItem("local:setting", setting.value);
+            message.success("服务器连接成功！信息已缓存！");
             return true;
         } catch (error) {
             console.error("保存设置失败:", error);
@@ -177,7 +175,7 @@ export const useSettingStore = defineStore("setting", () => {
         if (!response.succeed) {
             return response;
         }
-        return CommonResponse.success(response.data.reduce((acc, site) => {
+        return CommonResponse.success(response.data.reduce((acc: { [key: string]: WebSite }, site: WebSite) => {
             acc[site.name] = site;
             return acc;
         }, {}))
@@ -195,26 +193,26 @@ export const useSettingStore = defineStore("setting", () => {
         if (!response.succeed) {
             return response;
         }
-        return CommonResponse.success(response.data.reduce((acc, site) => {
+        return CommonResponse.success(response.data.reduce((acc: { [key: number]: MySite }, site: MySite) => {
             // 创建浅拷贝并立即删除不需要的属性
             const {status, sign_info, ...processedSite} = site;
-            acc[site.id] = processedSite;
+            acc[site.id] = <MySite>processedSite;
             return acc;
         }, {}))
     }
     const filterSiteById = async (siteId: number) => {
-        const mySite = mySiteList.value[siteId];
+        const mySite = mySiteList.value![siteId];
         if (!mySite) {
             console.log(`${siteId} not found`);
             message.warning(`ID 为${siteId}的站点不存在！`);
             return
         }
-        return webSiteList.value[mySite.site]
+        return webSiteList.value![mySite.site]
     }
     const filterSiteByHost = (host: string) => {
         host = replaceMTeamDomainIfMatched(host).toLowerCase();
 
-        return Object.values(webSiteList.value).find(site =>
+        return Object.values(webSiteList.value!).find(site =>
             site.url.some(url => {
                 try {
                     return new URL(url).host === host;
@@ -226,7 +224,7 @@ export const useSettingStore = defineStore("setting", () => {
     }
 
     const filterMySiteBySiteName = (siteName: String) => {
-        const mySite = Object.values(mySiteList.value).find(mySite => mySite.site === siteName);
+        const mySite = Object.values(mySiteList.value!).find(mySite => mySite.site === siteName);
         console.log(mySite);
         if (!mySite) {
             return 0
@@ -237,10 +235,10 @@ export const useSettingStore = defineStore("setting", () => {
     const filterToAddSite = async () => {
         console.log('筛选已添加的站点')
         await loadFromCacheIfAvailable()
-        const existingSites = new Set(Object.values(mySiteList.value).map(site => site.site));
+        const existingSites = new Set(Object.values(mySiteList.value!).map(site => site.site));
         console.log('已添加的站点:', existingSites);
         return Object.fromEntries(
-            Object.entries(webSiteList.value).filter(([key, site]) => !existingSites.has(key) && site.alive)
+            Object.entries(webSiteList.value!).filter(([key, site]) => !existingSites.has(key) && site.alive)
         );
     }
     const autoSyncCookie = async (): Promise<void> => {
@@ -249,25 +247,26 @@ export const useSettingStore = defineStore("setting", () => {
         const siteList = Object.values(mySiteList.value!);
         console.log('需要同步的站点：', siteList);
         for (const site of siteList) {
-            console.log(`正在同步的站点：${site.nickname} ==> ${site.site}`)
-            let {host} = new URL(site.mirror!);
-            const response = await getCookieString(host);
-            if (response.succeed) {
-                // 保存Cookie到插件存储（推荐使用chrome.storage）
-                let siteData = `user_id=${site.user_id}&site=${site.site}&cookie=${response.data}&user_agent=${window.navigator.userAgent}`
-                const res = await sendSiteInfo(siteData)
-                console.log(res.msg)
-            }
+            setTimeout(async () => {
+                console.log(`正在同步的站点：${site.nickname} ==> ${site.site}`)
+                let {host} = new URL(site.mirror!);
+                const response = await getCookieString(host);
+                if (response.succeed) {
+                    // 保存Cookie到插件存储（推荐使用chrome.storage）
+                    let siteData = `user_id=${site.user_id}&site=${site.site}&cookie=${response.data}&user_agent=${window.navigator.userAgent}`
+                    const res = await sendSiteInfo(siteData, true)
+                    console.log(res.msg)
+                }
+            }, 2000)
         }
+        await cacheServerData()
     }
     const autoAddSites = async () => {
-        importMode.value = true;
         const toAddSites = await filterToAddSite()
         console.log('未添加的站点:', toAddSites)
         for (const site of Object.values(toAddSites)) {
             await addSingleSite(site);
         }
-        importMode.value = false;
     }
 
     const addSingleSite = async (site: WebSite) => {
@@ -358,14 +357,16 @@ export const useSettingStore = defineStore("setting", () => {
     /**
      * 保存站点信息到服务器
      * @param data
+     * @param importMode
      */
-    const sendSiteInfo = async (data: string) => {
+    const sendSiteInfo = async (data: string, importMode: boolean = false) => {
+        console.log('站点导入模式', importMode);
         return await browser.runtime.sendMessage({
             type: 'sendSiteInfo',
             payload: {
                 setting: setting.value,
                 data: data,
-                importMode: importMode.value,
+                importMode: importMode,
             }
         })
     }
@@ -461,9 +462,9 @@ export const useSettingStore = defineStore("setting", () => {
             canSave.value = false;
             return;
         }
-        message.success("服务器连接成功！");
         console.log('服务器连接成功！');
         canSave.value = true;
+        await saveSetting()
     }
 
     /**
