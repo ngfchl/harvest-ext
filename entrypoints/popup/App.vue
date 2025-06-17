@@ -9,7 +9,6 @@ const {
   canSave,
 } = storeToRefs(settingStore)
 const {
-  saveSetting,
   getSetting,
   testServer,
   autoAddSites,
@@ -23,17 +22,6 @@ const {
 const formMaxWidth = computed(() => {
   return window.innerWidth < 350 ? '90%' : '350px';
 });
-
-// 保存设置
-const saveSettings = async () => {
-  console.log('保存设置:', setting.value);
-  try {
-    await saveSetting(setting.value)
-    console.log('设置保存成功');
-  } catch (e) {
-    console.error('保存失败:', e);
-  }
-};
 
 
 onMounted(async () => {
@@ -101,13 +89,13 @@ onMounted(async () => {
             </a-button>
           </a-space>
           <a-space v-if="canSave">
-            <a-button
-                block
-                type="primary"
-                @click="saveSettings"
-            >
-              保存配置
-            </a-button>
+            <!--            <a-button-->
+            <!--                block-->
+            <!--                type="primary"-->
+            <!--                @click="saveSettings"-->
+            <!--            >-->
+            <!--              保存配置-->
+            <!--            </a-button>-->
             <a-popover title="缓存服务器数据">
               <template #content>
                 <p>从收割机服务器拉取站点配置列表，已有站点列表，下载器列表，缓存到本地，减少交互，提高效率</p>
