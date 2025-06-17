@@ -261,9 +261,9 @@ export const useSettingStore = defineStore("setting", () => {
         await cacheServerData()
     }
 
-    const switchImportMode = async (value: boolean) => {
-        importMode.value = value;
-        await storage.setItem('local:importMode', value)
+    const switchImportMode = async () => {
+        importMode.value = !importMode.value;
+        await storage.setItem('local:importMode', importMode.value)
     }
     const autoAddSites = async () => {
         const toAddSites = await filterToAddSite()

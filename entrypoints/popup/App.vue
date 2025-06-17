@@ -85,6 +85,7 @@ onMounted(async () => {
             <a-button
                 :href="setting.baseUrl"
                 danger
+                ghost
                 target="_blank"
                 type="primary"
             >
@@ -108,7 +109,7 @@ onMounted(async () => {
                   type="primary"
                   @click="cacheServerData"
               >
-                数据缓存
+                更新缓存
               </a-button>
             </a-popover>
             <a-popover title="一键同步Cookie">
@@ -125,11 +126,37 @@ onMounted(async () => {
             </a-popover>
           </a-space>
           <a-space v-if="canSave">
-            <a-switch
-                v-model:checked="importMode"
-                checked-children="导入模式:开"
-                un-checked-children="导入模式:关" @change="switchImportMode"
-            />
+            <a-popover title="导入模式开关">
+              <template #content>
+                <p>
+                  打开导入模式时，会显示一键添加按钮，此时可以一键导入未添加的站点
+                </p>
+                <p>
+                  站点添加成功后会关掉当前页面，未关掉的站点就是添加失败的，可以手动点击同步数据按钮
+                </p>
+                <p>
+                  如果你发现你的个人中心或者控制面板打开后页面自动关闭，请关闭导入模式！
+                </p>
+              </template>
+              <a-button
+                  v-if="importMode"
+                  block
+                  danger
+                  ghost
+                  type="primary"
+                  @click="switchImportMode"
+              >
+                <span>导入模式:开</span>
+              </a-button>
+              <a-button
+                  v-else
+                  block
+                  type="primary"
+                  @click="switchImportMode"
+              >
+                <span>导入模式:关</span>
+              </a-button>
+            </a-popover>
             <a-popover title="一键添加站点">
               <template #content>
                 <p>筛选未添加的站点列表，同时在本地的 Cookie 信息中筛选访问过的站点，抓取 Cookie 和
@@ -138,6 +165,7 @@ onMounted(async () => {
               <a-button
                   v-if="importMode"
                   block
+                  ghost
                   type="primary"
                   @click="autoAddSites"
               >
