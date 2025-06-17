@@ -881,7 +881,7 @@ const getModalContainer = (id: string = 'modal-container') => {
       <a-button
           block
           size="small"
-          type="primary"
+          type="text"
           @click="go_to_control_page">
         <template #icon>
           <SyncOutlined/>
@@ -891,7 +891,7 @@ const getModalContainer = (id: string = 'modal-container') => {
       <a-button
           v-if="torrent_list_page && downloaders.length > 0  && mySiteId > 0"
           block size="small"
-          style="width: 110px;"
+          style="width: 110px;" type="text"
           @click="download_all"
       >
         <template #icon>
@@ -901,7 +901,7 @@ const getModalContainer = (id: string = 'modal-container') => {
       </a-button>
       <a-button
           v-if="torrent_list_page && downloaders.length > 0  && mySiteId > 0" block
-          size="small"
+          size="small" type="text"
           @click="download_free"
       >
         <template #icon>
@@ -951,7 +951,7 @@ const getModalContainer = (id: string = 'modal-container') => {
       <!--        </a-button>-->
       <a-button
           v-if="torrent_detail_page && downloaders.length > 0  && mySiteId > 0" block
-          size="small"
+          size="small" type="text"
           @click="download_to">
         <template #icon>
           <DownloadOutlined/>
@@ -960,7 +960,7 @@ const getModalContainer = (id: string = 'modal-container') => {
       </a-button>
       <a-button
           v-if="torrent_detail_repeat && mySiteId > 0" block
-          size="small"
+          size="small" type="text"
           @click="drawer = true">
         <template #icon>
           <PushpinFilled/>
