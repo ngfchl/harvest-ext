@@ -10,7 +10,7 @@ export default defineConfig({
     manifest: {
         name: '收割机助手',
         description: '在收割机支持的网站上显示操作窗口',
-        version: '0.1.1',
+        version: '0.1.2',
         permissions: ["storage", "fetch", "cookies", "activeTab"],
         host_permissions: [
             "*://*/*",
