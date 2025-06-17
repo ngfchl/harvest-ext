@@ -13,7 +13,7 @@ export default defineConfig({
         name: '收割机助手',
         description: '在收割机支持的网站上显示操作窗口',
         version: '1.0.0',
-        permissions: ["storage", "fetch", "cookies", "activeTab", "*://*/*"],
+        permissions: ["storage", "fetch", "cookies", "activeTab"],
         host_permissions: [
             "*://*/*",
         ], // 或精准配置
