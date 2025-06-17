@@ -1,11 +1,11 @@
 import {CommonResponse, Downloader, MySite, Settings, SiteInfo, Torrent, WebSite} from "@/types";
 import {defineStore} from "pinia";
-import {ref} from "vue";
+import {ref, toRaw} from "vue";
 import {message} from "ant-design-vue";
 
 export const useSettingStore = defineStore("setting", () => {
     const setting = ref<Settings>({
-        baseUrl: 'http://127.0.0.1:8000', token: '',
+        baseUrl: 'http://127.0.0.1:8000', token: '&ze3pmoe',
         imgUrl: 'https://api.r10086.com/%E6%A8%B1%E9%81%93%E9%9A%8F%E6%9C%BA%E5%9B%BE%E7%89%87api%E6%8E%A5%E5%8F%A3.php?%E5%9B%BE%E7%89%87%E7%B3%BB%E5%88%97=%E5%B0%91%E5%A5%B3%E5%86%99%E7%9C%9F5'
     })
     const canSave = ref(false);
@@ -39,7 +39,7 @@ export const useSettingStore = defineStore("setting", () => {
     const saveSetting = async () => {
         try {
             // 保存到存储
-            await storage.setItem("local:setting", setting.value);
+            await storage.setItem("local:setting", toRaw(setting.value));
             message.success("服务器连接成功！信息已缓存！");
             return true;
         } catch (error) {
@@ -170,7 +170,7 @@ export const useSettingStore = defineStore("setting", () => {
         const response = await browser.runtime.sendMessage({
             type: 'getWebSiteList',
             payload: {
-                setting: setting.value,
+                setting: toRaw(setting.value),
             }
         });
         if (!response.succeed) {
@@ -188,7 +188,7 @@ export const useSettingStore = defineStore("setting", () => {
         const response = await browser.runtime.sendMessage({
             type: 'getMySiteList',
             payload: {
-                setting: setting.value,
+                setting: toRaw(setting.value),
             }
         });
         if (!response.succeed) {
@@ -301,7 +301,7 @@ export const useSettingStore = defineStore("setting", () => {
                     const res = await browser.runtime.sendMessage({
                         type: 'openPanelUrl',
                         payload: {
-                            setting: setting.value,
+                            setting: toRaw(setting.value),
                             host: panelUrl,
                         }
                     });
@@ -328,7 +328,7 @@ export const useSettingStore = defineStore("setting", () => {
         const res = await browser.runtime.sendMessage({
             type: 'getSiteInfo',
             payload: {
-                setting: setting.value,
+                setting: toRaw(setting.value),
                 host: host,
             }
         });
@@ -352,7 +352,7 @@ export const useSettingStore = defineStore("setting", () => {
         const cookies: CommonResponse<any> = await browser.runtime.sendMessage({
             type: 'getSiteCookies',
             payload: {
-                setting: setting.value,
+                setting: toRaw(setting.value),
                 host: host,
             }
         });
@@ -370,7 +370,7 @@ export const useSettingStore = defineStore("setting", () => {
         return await browser.runtime.sendMessage({
             type: 'sendSiteInfo',
             payload: {
-                setting: setting.value,
+                setting: toRaw(setting.value),
                 data: data,
                 importMode: importMode,
             }
@@ -383,7 +383,7 @@ export const useSettingStore = defineStore("setting", () => {
         return await browser.runtime.sendMessage({
             type: 'getDownloaders',
             payload: {
-                setting: setting.value,
+                setting: toRaw(setting.value),
             }
         })
     }
@@ -391,7 +391,7 @@ export const useSettingStore = defineStore("setting", () => {
         return await browser.runtime.sendMessage({
             type: 'testDownloader',
             payload: {
-                setting: setting.value,
+                setting: toRaw(setting.value),
                 downloaderId: downloaderId
             }
         })
@@ -400,7 +400,7 @@ export const useSettingStore = defineStore("setting", () => {
         return await browser.runtime.sendMessage({
             type: 'getDownloaderCategorise',
             payload: {
-                setting: setting.value,
+                setting: toRaw(setting.value),
                 downloaderId: downloaderId
             }
         })
@@ -417,7 +417,7 @@ export const useSettingStore = defineStore("setting", () => {
         return await browser.runtime.sendMessage({
             type: 'pushTorrent',
             payload: {
-                setting: setting.value,
+                setting: toRaw(setting.value),
                 downloaderId: downloaderId,
                 mySiteId: mySiteId,
                 category: category,
@@ -435,7 +435,7 @@ export const useSettingStore = defineStore("setting", () => {
         return await browser.runtime.sendMessage({
             type: 'repeatInfo',
             payload: {
-                setting: setting.value,
+                setting: toRaw(setting.value),
                 tid: tid,
                 mySiteId: mySiteId
             }
@@ -448,7 +448,7 @@ export const useSettingStore = defineStore("setting", () => {
         return await browser.runtime.sendMessage({
             type: 'syncTorrents',
             payload: {
-                setting: setting.value,
+                setting: toRaw(setting.value),
                 torrents: torrents,
                 mySiteId: mySiteId,
             }

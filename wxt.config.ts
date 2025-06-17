@@ -12,15 +12,11 @@ export default defineConfig({
         name: '收割机助手',
         description: '在收割机支持的网站上显示操作窗口',
         key: fs.readFileSync('key.pem', 'utf-8'),
-        version: '0.1.3',
-        permissions: ["storage", "fetch", "cookies", "activeTab"],
+        version: '0.1.4',
+        permissions: ["storage", "cookies", "activeTab"],
         host_permissions: [
             "*://*/*",
         ], // 或精准配置
-        content_security_policy: {
-            // extension_pages: "script-src 'self'; object-src 'self';",
-            // sandbox: "allow-same-origin allow-scripts"
-        },
     },
     // 打包配置
     zip: {
