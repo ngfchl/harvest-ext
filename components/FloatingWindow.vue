@@ -111,7 +111,7 @@ onMounted(async () => {
   // 从本地存储加载站点信息
   loadLocalStorage();
   // 如果站点 ID 不存在，使用站点 host 去查找站点配置文件
-  if (!mySiteId.value) {
+  if (!mySiteId.value || mySiteId.value == 0) {
     console.log(mySiteId.value)
     siteInfo.value = filterSiteByHost(location.host)
     mySiteId.value = filterMySiteBySiteName(siteInfo.value.name);
