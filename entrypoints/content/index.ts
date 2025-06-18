@@ -211,6 +211,7 @@ export default defineContentScript({
         'https://www.ptskit.org/*',
         // 2025-06-18
         'https://www.devtracker.me/*',
+        'https://pt.ying.us.kg/*',
     ],
     // 2. Set cssInjectionMode
     cssInjectionMode: 'ui',
