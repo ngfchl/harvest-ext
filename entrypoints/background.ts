@@ -15,6 +15,10 @@ export default defineBackground(() => {
                         response = await openPanelUrl(request.payload)
                         console.log('getSiteInfo执行结果', response)
                         break;
+                    case "clearSiteHarvestInfo":
+                        response = await clearSiteHarvestInfo(request.payload)
+                        console.log('清理收割机任务执行结果', response)
+                        break;
                     case "getSiteInfo":
                         response = await getSite(request.payload)
                         console.log('getSiteInfo执行结果', response)
@@ -266,4 +270,51 @@ async function openPanelUrl(params: {
     host: string,
 }) {
     await browser.tabs.create({url: params.host});
+}
+
+/**
+ * 在新标签打开指定网页 清理 localStorage 字段并关闭标签页
+ */
+async function clearSiteHarvestInfo(params: {
+    setting: Settings,
+    host: string,
+}) {
+    return new Promise<void>((resolve, reject) => {
+        browser.tabs.create({url: params.host, active: false}).then(tab => {
+            if (!tab.id) return reject('无法创建标签页');
+            const tabId = tab.id;
+            // 等待页面加载完成
+            console.log(`开始清理：${params.host} 站点收割机相关缓存信息...`)
+            const handleUpdate = (updatedTabId: number, changeInfo: Browser.tabs.TabChangeInfo) => {
+                if (updatedTabId === tabId && changeInfo.status === 'complete') {
+                    // 注入脚本执行 localStorage 删除
+                    browser.scripting.executeScript({
+                        target: {tabId},
+                        func: (keysToDelete: string[]) => {
+                            keysToDelete.forEach(key => {
+                                localStorage.removeItem(key);
+                                console.log(`[自动清理] 已删除 localStorage: ${key}`);
+                            });
+                        },
+                        args: [[
+                            'website',
+                            'mySite',
+                        ]],
+                    }).then(() => {
+                        browser.tabs.remove(tabId);
+                        browser.tabs.onUpdated.removeListener(handleUpdate);
+                        resolve();
+                    }).catch(err => {
+                        browser.tabs.onUpdated.removeListener(handleUpdate);
+                        reject(err);
+                    });
+                }
+            };
+
+            // 监听页面加载完成
+            browser.tabs.onUpdated.addListener(handleUpdate);
+        }).catch(err => {
+            reject(err);
+        });
+    });
 }

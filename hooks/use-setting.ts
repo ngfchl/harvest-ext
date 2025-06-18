@@ -13,8 +13,11 @@ export const useSettingStore = defineStore("setting", () => {
     const webSiteList = ref<{ [key: string]: WebSite }>()
     const mySiteList = ref<{ [key: string]: MySite }>()
     const importMode = ref<boolean>(false)
+    const isOpenInPopupFlag = ref<boolean>(false)
 
-    // 从存储加载设置
+    /**
+     * 从存储加载设置
+     */
     const getSetting = async () => {
         try {
             const data = await storage.getItem("local:setting");
@@ -35,7 +38,9 @@ export const useSettingStore = defineStore("setting", () => {
         }
     };
 
-    // 保存设置到存储
+    /**
+     * 保存设置到存储
+     */
     const saveSetting = async () => {
         try {
             // 保存到存储
@@ -48,11 +53,13 @@ export const useSettingStore = defineStore("setting", () => {
             return false;
         }
     };
+
     // 自动初始化 - 正确处理Promise
     const initialize = async () => {
         await getSetting();
         await loadFromCacheIfAvailable();
     };
+
     /**
      * 缓存数据到本地存储
      * @param key 缓存键名
@@ -118,7 +125,9 @@ export const useSettingStore = defineStore("setting", () => {
         await cacheServerData()
         return true;
     }
-
+    /**
+     * 从服务器拉取数据并缓存
+     */
     const cacheServerData = async () => {
         try {
             console.log('开始缓存服务器数据...');
@@ -201,6 +210,10 @@ export const useSettingStore = defineStore("setting", () => {
             return acc;
         }, {}))
     }
+    /**
+     * 使用已有的站点 ID 查找站点及配置信息
+     * @param siteId
+     */
     const filterSiteById = async (siteId: number) => {
         const mySite = mySiteList.value![siteId];
         if (!mySite) {
@@ -210,6 +223,10 @@ export const useSettingStore = defineStore("setting", () => {
         }
         return webSiteList.value![mySite.site]
     }
+    /**
+     * 使用 host 查找站点配置
+     * @param host
+     */
     const filterSiteByHost = (host: string) => {
         host = replaceMTeamDomainIfMatched(host).toLowerCase();
 
@@ -223,7 +240,10 @@ export const useSettingStore = defineStore("setting", () => {
             })
         );
     }
-
+    /**
+     * 使用站点名称查找已添加站点信息
+     * @param siteName
+     */
     const filterMySiteBySiteName = (siteName: String) => {
         const mySite = Object.values(mySiteList.value!).find(mySite => mySite.site === siteName);
         console.log(mySite);
@@ -233,6 +253,9 @@ export const useSettingStore = defineStore("setting", () => {
         return mySite.id;
     }
 
+    /**
+     * 筛选可以导入的站点
+     */
     const filterToAddSite = async () => {
         console.log('筛选已添加的站点')
         await loadFromCacheIfAvailable()
@@ -242,6 +265,9 @@ export const useSettingStore = defineStore("setting", () => {
             Object.entries(webSiteList.value!).filter(([key, site]) => !existingSites.has(key) && site.alive)
         );
     }
+    /**
+     * 自动同步已添加站点的 Cookie
+     */
     const autoSyncCookie = async (): Promise<void> => {
         console.log('开始同步站点 Cookie', mySiteList.value)
         await loadFromCacheIfAvailable()
@@ -260,11 +286,37 @@ export const useSettingStore = defineStore("setting", () => {
         }
         await cacheServerData()
     }
-
+    /**
+     * 判断 popup 弹出也是在标签页还是弹出框中
+     */
+    const isOpenInPopup = async (): Promise<boolean> => {
+        let flag = false;
+        const tab = await browser.tabs.getCurrent();
+        console.log("popup-tab:", tab)
+        if (tab) {
+            console.log('当前 popup 是在标签页中打开的');
+        } else {
+            flag = true;
+            console.log('当前 popup 是作为弹出窗口打开的');
+        }
+        return flag;
+    }
+    /**
+     * 打开 popup 页面
+     */
+    const openPopupInTab = async () => {
+        if (isOpenInPopupFlag.value) {
+            const url = browser.runtime.getURL('/popup.html');
+            browser.tabs.create({url});
+        }
+    }
+    /**
+     * 切换是否为站点导入模式
+     */
     const switchImportMode = async () => {
         importMode.value = !importMode.value;
         await storage.setItem('local:importMode', importMode.value)
-        if (importMode.value) {
+        if (importMode.value && isOpenInPopupFlag.value) {
             // 在新标签页打开弹出窗口
             const url = browser.runtime.getURL('/popup.html');
             browser.tabs.create({url});
@@ -283,10 +335,17 @@ export const useSettingStore = defineStore("setting", () => {
         return Math.floor(Math.random() * (max - min + 1)) + min;
     }
 
+    /**
+     * 等待时间
+     * @param ms
+     */
     function sleep(ms: number): Promise<void> {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 
+    /**
+     * 自动添加战地啊
+     */
     const autoAddSites = async () => {
         const toAddSites = await filterToAddSite()
         console.log('未添加的站点:', toAddSites)
@@ -301,7 +360,10 @@ export const useSettingStore = defineStore("setting", () => {
             }
         }
     }
-
+    /**
+     * 添加单站
+     * @param site
+     */
     const addSingleSite = async (site: WebSite) => {
         console.log(`正在添加站点： ${site.name} `);
         for (const url of site.url) {
@@ -342,10 +404,48 @@ export const useSettingStore = defineStore("setting", () => {
         console.warn('所有URL均未能获取有效Cookie');
     };
 
+
+    /**
+     * 自动清理站点收割机存储信息
+     */
+    const autoClearSitesHarvestInfo = async () => {
+        for (const site of Object.values(webSiteList.value!)) {
+            try {
+                await clearSingleSiteHarvestInfo(site);
+            } catch (e) {
+                console.log(e)
+            } finally {
+                let seconds = getRandomInt(1, 10)
+                await sleep(seconds * 200)
+            }
+        }
+    }
+    /**
+     * 清理单站存储的收割机信息
+     * @param site
+     */
+    const clearSingleSiteHarvestInfo = async (site: WebSite) => {
+        console.log(`正在清理站点收割机存储信息： ${site.name} `);
+        for (const url of site.url) {
+            try {
+                const res = await browser.runtime.sendMessage({
+                    type: 'clearSiteHarvestInfo',
+                    payload: {
+                        setting: toRaw(setting.value),
+                        host: url,
+                    }
+                });
+            } catch (e) {
+                console.log(e)
+            } finally {
+                await sleep(300)
+            }
+        }
+    }
     // // 立即执行初始化，但不阻塞其他代码
-    // initialize().catch(error => {
-    //     console.error("初始化设置失败:", error);
-    // });
+    initialize().catch(error => {
+        console.error("初始化设置失败:", error);
+    });
     /**
      * 获取站点相关规则
      * @param {string} host - 站点域名
@@ -414,6 +514,10 @@ export const useSettingStore = defineStore("setting", () => {
             }
         })
     }
+    /**
+     * 测试下载器
+     * @param downloaderId
+     */
     const testDownloader = async (downloaderId: number) => {
         return await browser.runtime.sendMessage({
             type: 'testDownloader',
@@ -423,6 +527,10 @@ export const useSettingStore = defineStore("setting", () => {
             }
         })
     }
+    /**
+     * 获取下载器分类
+     * @param downloaderId
+     */
     const getDownloaderCategorise = async (downloaderId: number) => {
         return await browser.runtime.sendMessage({
             type: 'getDownloaderCategorise',
@@ -432,6 +540,16 @@ export const useSettingStore = defineStore("setting", () => {
             }
         })
     }
+    /**
+     * 推送种子
+     * @param downloaderId
+     * @param mySiteId
+     * @param category
+     * @param siteName
+     * @param cookie
+     * @param savePath
+     * @param urlList
+     */
     const pushTorrent = async (
         downloaderId: number,
         mySiteId: number,
@@ -455,6 +573,11 @@ export const useSettingStore = defineStore("setting", () => {
             }
         })
     }
+    /**
+     * 获取种子辅种信息
+     * @param tid
+     * @param mySiteId
+     */
     const repeatInfo = async (
         tid: number,
         mySiteId: number
@@ -468,6 +591,11 @@ export const useSettingStore = defineStore("setting", () => {
             }
         })
     }
+    /**
+     * 同步种子信息到收割机
+     * @param torrents
+     * @param mySiteId
+     */
     const syncTorrents = async (
         torrents: Torrent[],
         mySiteId: number,
@@ -481,6 +609,9 @@ export const useSettingStore = defineStore("setting", () => {
             }
         })
     }
+    /**
+     * 测试服务器授权
+     */
     const testServer = async () => {
         if (!setting.value.baseUrl.startsWith('https://') && !setting.value.baseUrl.startsWith('http://')) {
             message.warn("服务器地址填写出错了，请以 http:// 或 https:// 开头");
@@ -520,32 +651,37 @@ export const useSettingStore = defineStore("setting", () => {
     }
 
     return {
-        initialize,
-        importMode,
-        switchImportMode,
+        autoAddSites,
+        autoClearSitesHarvestInfo,
+        clearSingleSiteHarvestInfo,
+        autoSyncCookie,
         cacheServerData,
         canSave,
-        autoAddSites,
-        autoSyncCookie,
+        downloaders,
+        filterMySiteBySiteName,
         filterSiteByHost,
         filterSiteById,
-        filterMySiteBySiteName,
         getCookieString,
         getDownloaderCategorise,
         getDownloaders,
         getSetting,
         getSite,
+        importMode,
+        initialize,
+        isOpenInPopup,
+        isOpenInPopupFlag,
         loadFromCacheIfAvailable,
+        mySiteList,
+        openPopupInTab,
         pushTorrent,
         repeatInfo,
         saveSetting,
         sendSiteInfo,
         setting,
+        switchImportMode,
         syncTorrents,
         testDownloader,
         testServer,
-        mySiteList,
         webSiteList,
-        downloaders,
     };
 })

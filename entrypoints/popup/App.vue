@@ -8,14 +8,18 @@ const {
   setting,
   canSave,
   importMode,
+  isOpenInPopupFlag,
 } = storeToRefs(settingStore)
 const {
   getSetting,
   testServer,
   autoAddSites,
   autoSyncCookie,
+  openPopupInTab,
+  isOpenInPopup,
   cacheServerData,
   switchImportMode,
+  autoClearSitesHarvestInfo,
 } = settingStore
 // const mySiteId = ref<number>(0)
 // const siteInfo = ref();
@@ -27,9 +31,10 @@ const formMaxWidth = computed(() => {
 
 
 onMounted(async () => {
-  console.log("打开弹出页面！")
+  console.log("打开弹出页面！:")
   await getSetting()
   console.log(setting.value)
+  isOpenInPopupFlag.value = await isOpenInPopup()
   importMode.value = await storage.getItem('local:importMode') || false
 });
 
@@ -82,11 +87,11 @@ onMounted(async () => {
             登录鉴权
           </a-button>
           <a-button
-              :href="setting.baseUrl"
+              v-if="isOpenInPopupFlag"
               danger
               ghost
-              target="_blank"
               type="primary"
+              @click="openPopupInTab"
           >
             打开网页
           </a-button>
@@ -169,6 +174,24 @@ onMounted(async () => {
                 @click="autoAddSites"
             >
               一键添加
+            </a-button>
+          </a-popover>
+        </a-space>
+        <a-space v-if="canSave">
+          <a-popover title="清理单站收割机缓存">
+            <template #content>
+              <p>
+                清理单站收割机缓存会挨个打开站点所有 url，并从本地存储删除收割机站点 ID 和站点配置文件缓存
+              </p>
+            </template>
+            <a-button
+                block
+                danger
+                ghost
+                type="primary"
+                @click="autoClearSitesHarvestInfo"
+            >
+              <span>清理缓存:慎用</span>
             </a-button>
           </a-popover>
         </a-space>
