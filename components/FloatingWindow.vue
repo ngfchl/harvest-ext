@@ -438,7 +438,7 @@ async function getSiteData() {
     console.log('获取 UID 出错啦！')
     return CommonResponse.error(-1, '获取 UID 信息出错啦！')
   }
-  if (location.href.includes('?id=') && !location.href.endsWith(href)) {
+  if ((location.href.includes('?id=') || location.href.includes('?uuid=')) && !location.href.endsWith(href.substring(6))) {
     console.log('非本人主页，取消同步！')
     return CommonResponse.error(-1, '非本人主页，取消同步！')
   }
