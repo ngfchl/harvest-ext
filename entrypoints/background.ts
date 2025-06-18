@@ -5,7 +5,7 @@ import {fetchApi} from "@/hooks/requests";
 export default defineBackground(() => {
     console.log('Hello background!', {id: browser.runtime.id});
     // 监听消息
-    browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    browser.runtime.onMessage.addListener((request, sender: Browser.runtime.MessageSender, sendResponse) => {
         console.log('后台接收到的参数：', request.type, request.payload, 'sender:', sender);
         (async () => {
             try {
@@ -138,7 +138,7 @@ async function sendSiteInfoApi(params: {
     setting: Settings,
     data: string,
     importMode: boolean,
-}, sender) {
+}, sender: Browser.runtime.MessageSender) {
     const response = await fetchApi({
         ...params,
         path: "api/auth/monkey/save_site",
@@ -147,8 +147,8 @@ async function sendSiteInfoApi(params: {
         contentType: "application/x-www-form-urlencoded",
     });
     console.log(`站点添加结果：${params.importMode} == ${response.succeed}`);
-    if (response.succeed && params.importMode) {
-        browser.tabs.remove(sender.tab?.id)
+    if (response.succeed && params.importMode && sender.tab?.id) {
+        browser.tabs.remove(sender.tab.id)
     }
 
     return response
