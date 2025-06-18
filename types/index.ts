@@ -386,3 +386,9 @@ interface SignInfo {
     updated_at?: string; // 部分日期使用updated_at
     info: string; // 签到详情信息
 }
+
+export interface CacheData {
+    data: object
+    timestamp: number
+    expireTime: number
+}
