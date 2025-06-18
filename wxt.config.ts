@@ -12,8 +12,8 @@ export default defineConfig({
         name: '收割机助手',
         description: '在收割机支持的网站上显示操作窗口',
         key: fs.readFileSync('key.pem', 'utf-8'),
-        version: '0.1.5',
-        permissions: ["storage", "cookies", "activeTab"],
+        version: '0.1.6',
+        permissions: ["storage", "cookies", "activeTab", "scripting"],
         host_permissions: [
             "*://*/*",
         ], // 或精准配置
