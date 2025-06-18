@@ -1,11 +1,11 @@
-import {CommonResponse, Downloader, MySite, Settings, SiteInfo, Torrent, WebSite} from "@/types";
+import {CacheData, CommonResponse, Downloader, MySite, Settings, SiteInfo, Torrent, WebSite} from "@/types";
 import {defineStore} from "pinia";
 import {ref, toRaw} from "vue";
 import {message} from "ant-design-vue";
 
 export const useSettingStore = defineStore("setting", () => {
     const setting = ref<Settings>({
-        baseUrl: 'http://127.0.0.1:8000', token: '&ze3pmoe',
+        baseUrl: 'http://127.0.0.1:8000', token: '',
         imgUrl: 'https://api.r10086.com/%E6%A8%B1%E9%81%93%E9%9A%8F%E6%9C%BA%E5%9B%BE%E7%89%87api%E6%8E%A5%E5%8F%A3.php?%E5%9B%BE%E7%89%87%E7%B3%BB%E5%88%97=%E5%B0%91%E5%A5%B3%E5%86%99%E7%9C%9F5'
     })
     const canSave = ref(false);
@@ -60,12 +60,12 @@ export const useSettingStore = defineStore("setting", () => {
      * @param expireTime 过期时间(毫秒)，默认24小时
      */
     const saveToCache = async (key: string, data: any, expireTime: number = 24 * 60 * 60 * 1000) => {
-        const cacheData = {
+        const cacheData: CacheData = {
             data,
             timestamp: Date.now(),
             expireTime
         };
-        await storage.setItem(key, cacheData);
+        await storage.setItem(<StorageItemKey>key, cacheData);
         console.log(`数据已缓存到本地: ${key}`);
     }
 
@@ -75,7 +75,7 @@ export const useSettingStore = defineStore("setting", () => {
      * @returns 缓存数据或null
      */
     const getFromCache = async (key: string,): Promise<any | null> => {
-        const cacheData = await storage.getItem(<StorageItemKey>key);
+        const cacheData: CacheData | null = await storage.getItem(<StorageItemKey>key);
         // const cacheData = result.data;
         if (!cacheData) {
             console.log(`缓存未找到: ${key}`);
@@ -131,7 +131,7 @@ export const useSettingStore = defineStore("setting", () => {
             ]);
 
             // 验证并处理结果
-            const validateResult = (result, action) => {
+            const validateResult = (result: CommonResponse<any>, action: string) => {
                 if (!result.succeed) {
                     console.log(`${action}失败:`, result.msg);
                     throw new Error(`${action}失败`);
@@ -264,14 +264,41 @@ export const useSettingStore = defineStore("setting", () => {
     const switchImportMode = async () => {
         importMode.value = !importMode.value;
         await storage.setItem('local:importMode', importMode.value)
+        if (importMode.value) {
+            // 在新标签页打开弹出窗口
+            const url = browser.runtime.getURL('/popup.html');
+            browser.tabs.create({url});
+        }
     }
+
+    /**
+     * 获取指定范围的随机数
+     * @param min
+     * @param max
+     */
+    function getRandomInt(min: number, max: number): number {
+        // 向上取整、向下取整，确保包含 min 和 max
+        min = Math.ceil(min);
+        max = Math.floor(max);
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    function sleep(ms: number): Promise<void> {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
     const autoAddSites = async () => {
         const toAddSites = await filterToAddSite()
         console.log('未添加的站点:', toAddSites)
         for (const site of Object.values(toAddSites)) {
-            setTimeout(async () => {
+            try {
                 await addSingleSite(site);
-            }, 500);
+            } catch (e) {
+                console.log(e)
+            } finally {
+                let seconds = getRandomInt(1, 10)
+                await sleep(seconds * 200)
+            }
         }
     }
 
