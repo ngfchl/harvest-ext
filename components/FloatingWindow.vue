@@ -98,7 +98,7 @@ const onMouseUp = () => {
   }
 };
 const loadLocalStorage = () => {
-  mySiteId.value = localStorage.getItem('mySite');
+  mySiteId.value = parseInt(JSON.parse(localStorage.getItem('mySite') ?? '0'));
   siteInfo.value = localStorage.getItem('website');
 }
 onMounted(async () => {
@@ -182,7 +182,7 @@ async function download_to() {
 }
 
 const showModal = async () => {
-  if (downloaders.value.length <= 0) {
+  if (downloaders.value!.length <= 0) {
     message.warning('没有可用的下载器！请先在收割机中添加！')
     return
   }
@@ -191,7 +191,7 @@ const showModal = async () => {
     return
   }
   open.value = true;
-  let downloader_id = downloaders.value[0].id
+  let downloader_id = downloaders.value![0].id
   console.log(activeKey.value)
   activeKey.value = downloader_id
   await getDownloaderCategoryList(downloader_id)
@@ -258,9 +258,6 @@ async function init_button() {
       || location.pathname.search(/t\/\d+/) > 0
   ) {
     console.log('当前为种子详情页')
-    if (downloaders.value.length <= 0) {
-      await getDownloadersList()
-    }
     torrent_detail_page.value = true
     await get_torrent_detail()
     // await sync_torrents()
@@ -296,6 +293,7 @@ async function init_button() {
       location.href.includes('/user.php?u=') ||
       location.href.includes('/u/') ||
       location.href.includes('/index.php?page=usercp&uid=') ||
+      location.href.includes('/home.php?mod=space&do=profile') ||
       location.href.includes('/Users/profile?uid=') ||
       location.href.includes('/profile/') ||
       location.href.includes('/users/')
@@ -314,9 +312,11 @@ async function init_button() {
   if ((location.pathname.search(/usercp.php/) > 0 && !location.href.includes('?')) ||
       location.href.includes('p_user/edit_passkey') ||
       location.href.includes('/index.php?page=usercp&do=pid_c&action=change&uid=') ||
+      location.href.includes('/home.php?mod=space&do=profile') ||
       location.href.includes('/Users/me') ||
       location.href.includes('/user/setting') ||
-      location.href.includes('/my.php')
+      location.href.includes('/my.php') ||
+      location.href.includes('/account')
   ) {
     console.log('当前为控制面板页')
     user_detail_page.value = true
@@ -438,7 +438,12 @@ async function getSiteData() {
     console.log('获取 UID 出错啦！')
     return CommonResponse.error(-1, '获取 UID 信息出错啦！')
   }
-  if ((location.href.includes('?id=') || location.href.includes('?uuid=')) && !location.href.endsWith(href.substring(6))) {
+  if ((
+      location.href.includes('?id=')
+      || location.href.includes('?uid=')
+      || location.href.includes('?uuid=')
+      || location.href.includes('?u=')
+  ) && !location.href.endsWith(href.substring(6))) {
     console.log('非本人主页，取消同步！')
     return CommonResponse.error(-1, '非本人主页，取消同步！')
   }
@@ -449,7 +454,7 @@ async function getSiteData() {
     }
 
     let url = new URL(href)
-    user_id = url.searchParams.get("id") ?? url.searchParams.get("uid") ?? url.searchParams.get("user_id") ?? url.searchParams.get("uuid")
+    user_id = url.searchParams.get("id") ?? url.searchParams.get("uid") ?? url.searchParams.get("user_id") ?? url.searchParams.get("uuid") ?? url.searchParams.get("u")
   } else {
     let user_id_info = href.split('/')
     user_id = user_id_info[user_id_info.length - 1].trim()
@@ -889,7 +894,7 @@ const getModalContainer = (id: string = 'modal-container') => {
         同步数据
       </a-button>
       <a-button
-          v-if="torrent_list_page && downloaders.length > 0  && mySiteId > 0"
+          v-if="torrent_list_page && (downloaders?.length || 0) > 0  && mySiteId > 0"
           block size="small"
           style="width: 110px;" type="text"
           @click="download_all"
@@ -900,7 +905,7 @@ const getModalContainer = (id: string = 'modal-container') => {
         下载全部
       </a-button>
       <a-button
-          v-if="torrent_list_page && downloaders.length > 0  && mySiteId > 0" block
+          v-if="torrent_list_page &&  (downloaders?.length || 0)  > 0  && mySiteId > 0" block
           size="small" type="text"
           @click="download_free"
       >
@@ -950,7 +955,7 @@ const getModalContainer = (id: string = 'modal-container') => {
       <!--          复制链接-->
       <!--        </a-button>-->
       <a-button
-          v-if="torrent_detail_page && downloaders.length > 0  && mySiteId > 0" block
+          v-if="torrent_detail_page &&  (downloaders?.length || 0)  > 0  && mySiteId > 0" block
           size="small" type="text"
           @click="download_to">
         <template #icon>
