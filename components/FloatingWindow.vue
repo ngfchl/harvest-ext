@@ -3,6 +3,7 @@ import {onMounted, ref,} from "vue";
 import {message} from "ant-design-vue"
 import {
   ArrowDownOutlined,
+  ClearOutlined,
   DownloadOutlined,
   DragOutlined,
   PushpinFilled,
@@ -31,6 +32,7 @@ const {
   repeatInfo,
   syncTorrents,
   loadFromCacheIfAvailable,
+  clearSingleSiteHarvestInfo,
 } = settingStore
 
 const drawer = ref(false)
@@ -385,6 +387,17 @@ function extractFirstEmail(text: string) {
 function validateEmail(email: string) {
   const emailRegex = /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
   return emailRegex.test(email);
+}
+
+/**
+ * 清理本站缓存
+ */
+const clearCurrentCache = async () => {
+  // 在新标签页打开弹出窗口
+  const url = browser.runtime.getURL('/popup.html');
+  browser.tabs.create({url: url, active: false});
+  await clearSingleSiteHarvestInfo(siteInfo.value)
+  location.reload()
 }
 
 /**
@@ -873,6 +886,17 @@ const getModalContainer = (id: string = 'modal-container') => {
         </template>
         收割机
       </a-button>
+      <a-button
+          block
+          danger
+          size="small"
+          type="text"
+          @click="clearCurrentCache">
+        <template #icon>
+          <ClearOutlined/>
+        </template>
+        清理缓存
+      </a-button>
       <!--        <a-button-->
       <!--            v-if="user_detail_page && mySiteId == 0"-->
       <!--            block size="small"-->
@@ -893,6 +917,7 @@ const getModalContainer = (id: string = 'modal-container') => {
         </template>
         同步数据
       </a-button>
+
       <a-button
           v-if="torrent_list_page && (downloaders?.length || 0) > 0  && mySiteId > 0"
           block size="small"
