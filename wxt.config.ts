@@ -12,11 +12,17 @@ export default defineConfig({
         name: '收割机助手',
         description: '在收割机支持的网站上显示操作窗口',
         key: fs.readFileSync('key.pem', 'utf-8'),
-        version: '0.1.4',
+        version: '0.1.5',
         permissions: ["storage", "cookies", "activeTab"],
         host_permissions: [
             "*://*/*",
         ], // 或精准配置
+        browser_specific_settings: {
+            gecko: {
+                id: "ngfchl@mail.com",
+                strict_min_version: "109.0"
+            }
+        }
     },
     // 打包配置
     zip: {
