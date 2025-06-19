@@ -170,7 +170,59 @@ async function go_to_control_page() {
     await getSiteInfo()
   }
   let url = siteInfo.value.page_control_panel
-  location.replace(url);
+  if (url.includes('{}')) {
+    let UserIdRes = await getUid()
+    if (!UserIdRes.succeed) {
+      console.error('用户ID解析失败！')
+      return CommonResponse.error(-1, '用户ID解析失败！')
+    }
+    let user_id = UserIdRes.data
+    url = `${location.origin}/${url.replace('{}', user_id)}`
+    console.log('站点 UID 解析成功：', user_id)
+    console.log('生成访问地址：', url)
+
+  }
+  window.location = url;
+}
+
+async function getUid() {
+  const node = document.evaluate(siteInfo.value.my_uid_rule, document).iterateNext();
+  let href = node?.textContent?.trim();
+
+  if (!href) {
+    console.log('获取 UID 出错啦！')
+    return CommonResponse.error(-1, '获取 UID 信息出错啦！')
+  }
+  if ((
+      location.href.includes('?id=')
+      || location.href.includes('?uid=')
+      || location.href.includes('?uuid=')
+      || location.href.includes('?u=')
+  ) && !location.href.endsWith(href.substring(6))) {
+    console.log('非本人主页，取消同步！')
+    return CommonResponse.error(-1, '非本人主页，取消同步！')
+  }
+  let user_id: string | null;
+  if (!href.includes('/')) {
+    user_id = href.trim()
+  } else if (href.includes('=')) {
+    // URL 模式
+    const fullUrl = href.startsWith('http') ? href : `${location.origin}/${href}`;
+    const url = new URL(fullUrl);
+    user_id =
+        url.searchParams.get('id') ||
+        url.searchParams.get('uid') ||
+        url.searchParams.get('user_id') ||
+        url.searchParams.get('uuid') ||
+        url.searchParams.get('u');
+  } else {
+    // path 模式
+    user_id = href.split('/').pop()?.trim() || null;
+  }
+  if (!user_id) {
+    return CommonResponse.error(-1, '非本人主页，取消同步！')
+  }
+  return CommonResponse.success(user_id)
 }
 
 async function download_to() {
@@ -245,7 +297,7 @@ async function init_button() {
   /**
    * 初始化页面按钮
    */
-  console.log('开始初始化按钮')
+  console.log('开始初始化按钮，当前页面地址：', location.href)
   if (location.origin === 'https://hdcity.city') {
     user_detail_page.value = location.pathname.startsWith('/userdetails');
   } else {
@@ -256,7 +308,7 @@ async function init_button() {
       || location.pathname.includes('/torrent.php')
       || location.pathname.includes('/views.php')
       || location.pathname.includes('/Torrents/details')
-      || location.pathname.search(/torrents\D*\d+/) > 0
+      || location.pathname.search(/torrent\/\D*\d+/) > 0
       || location.pathname.search(/t\/\d+/) > 0
   ) {
     console.log('当前为种子详情页')
@@ -275,7 +327,7 @@ async function init_button() {
 
   }
 // if (location.pathname.includes(siteInfo.value.page_torrents) //尝试与配置文件中的信息绑定
-  if (location.pathname.search(/torrents\D*$/) > 0 ||
+  if (location.pathname.search(/torrents\/\D*/) > 0 ||
       location.pathname.search(/t$/) > 0 ||
       location.pathname.endsWith('/Torrents') ||
       location.pathname.includes('/music.php') ||
@@ -444,40 +496,12 @@ async function getSiteData() {
   }
   cookie.value = cookieResponse.data
   //获取UID
-  let href = document.evaluate(siteInfo.value.my_uid_rule, document).iterateNext()!.textContent
-  console.log(href)
-
-  if (!href) {
-    console.log('获取 UID 出错啦！')
-    return CommonResponse.error(-1, '获取 UID 信息出错啦！')
-  }
-  if ((
-      location.href.includes('?id=')
-      || location.href.includes('?uid=')
-      || location.href.includes('?uuid=')
-      || location.href.includes('?u=')
-  ) && !location.href.endsWith(href.substring(6))) {
-    console.log('非本人主页，取消同步！')
-    return CommonResponse.error(-1, '非本人主页，取消同步！')
-  }
-  let user_id;
-  if (href.includes("=")) {
-    if (!href.startsWith('http')) {
-      href = `${location.origin}/${href}`
-    }
-
-    let url = new URL(href)
-    user_id = url.searchParams.get("id") ?? url.searchParams.get("uid") ?? url.searchParams.get("user_id") ?? url.searchParams.get("uuid") ?? url.searchParams.get("u")
-  } else {
-    let user_id_info = href.split('/')
-    user_id = user_id_info[user_id_info.length - 1].trim()
-  }
-
-  console.log(user_id)
-  if (!user_id) {
+  let UserIdRes = await getUid()
+  if (!UserIdRes.succeed) {
     console.error('用户ID解析失败！')
     return CommonResponse.error(-1, '用户ID解析失败！')
   }
+  let user_id = UserIdRes.data
   console.log('站点 UID 解析成功：', user_id)
   /* 处理馒头域名 */
   let host = `${document.location.origin}/`
@@ -604,7 +628,18 @@ async function get_torrent_list() {
       let tags = xpath(siteInfo.value.torrent_tags_rule, torrent_info)
       console.log(detail_url)
       if (!detail_url) continue
-      let tid = detail_url!.textContent!.match(/id=(\d+)/)![1]
+      // let tid = detail_url!.textContent!.match(/id=(\d+)/)![1]
+      const text = detail_url?.textContent ?? '';
+      let tid: string | null = null;
+
+      const idMatch = text.match(/(?:\?|&)id=(\d+)/);           // 匹配 ?id= 或 &id=
+      const pathMatch = text.match(/\/torrent\/(\d+)/);         // 匹配 /torrent/12345
+
+      if (idMatch) {
+        tid = idMatch[1];
+      } else if (pathMatch) {
+        tid = pathMatch[1];
+      }
       // 未获取到种子ID，pass
       console.log(tid)
       console.log(magnet_url_node)
