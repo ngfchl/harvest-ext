@@ -476,6 +476,10 @@ export const useSettingStore = defineStore("setting", () => {
      * @param host
      */
     const getCookieString = async (host: string) => {
+        const domainSplitList = host.split('.')
+        if (domainSplitList.length > 2) {
+            host = domainSplitList.slice(1).join('.')
+        }
         const cookies: CommonResponse<any> = await browser.runtime.sendMessage({
             type: 'getSiteCookies',
             payload: {
