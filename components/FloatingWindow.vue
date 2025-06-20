@@ -58,6 +58,7 @@ const url_list = ref<string[]>([])
 const modal_title = ref<string>('下载到')
 const singleTorrent = ref<Torrent>()
 const mySiteId = ref<number>(0)
+const myUid = ref<string>('')
 const siteInfo = ref();
 const harvestWrap = ref<HTMLElement | null>(null);
 let isDragging = false;
@@ -114,22 +115,35 @@ onMounted(async () => {
   // 从本地存储加载站点信息
   loadLocalStorage();
   // 如果站点 ID 不存在，使用站点 host 去查找站点配置文件
+  console.log('缓存中的当前站点 ID', mySiteId.value)
   if (!mySiteId.value || mySiteId.value == 0) {
-    console.log(mySiteId.value)
+    console.log('开始从缓存中加载站点数据', mySiteId.value);
     siteInfo.value = filterSiteByHost(location.host)
+    console.log('使用站点 host 查找站点信息：', siteInfo.value)
+    if (!siteInfo.value) {
+      message.error('查找站点失败，未在缓存中找到站点信息')
+      return;
+    }
     mySiteId.value = filterMySiteBySiteName(siteInfo.value.name);
+    console.log('查找到的站点信息：', mySiteId.value)
+    localStorage.setItem('myUid', JSON.stringify(myUid.value));
     localStorage.setItem('mySite', JSON.stringify(mySiteId.value));
   } else {
     // 如果站点 Id 存在
     siteInfo.value = await filterSiteById(mySiteId.value);
   }
   localStorage.setItem('website', JSON.stringify(siteInfo.value));
-
   // await getSiteInfo()
   // 在 Shadow DOM 中添加事件监听器
   document.addEventListener("mousemove", onMouseMove);
   document.addEventListener("mouseup", onMouseUp);
-  await init_button()
+  await nextTick(async () => {
+    // 在 DOM 元素渲染完成后执行的代码
+    // 可以在这里操作已经渲染的 DOM 元素或执行其他需要在 DOM 渲染完成后执行的逻辑
+    console.log('页面加载完成');
+    await getUid()
+    await init_button()
+  });
 });
 
 /**
@@ -177,32 +191,23 @@ async function go_to_control_page() {
       console.error('用户ID解析失败！')
       return CommonResponse.error(-1, '用户ID解析失败！')
     }
-    let user_id = UserIdRes.data
-    url = `${location.origin}/${url.replace('{}', user_id)}`
-    console.log('站点 UID 解析成功：', user_id)
+    url = `${location.origin}/${url.replace('{}', myUid.value)}`
+    console.log('站点 UID 解析成功：', myUid.value)
     console.log('生成访问地址：', url)
-
   }
   window.location = url;
 }
 
 async function getUid() {
   const node = document.evaluate(siteInfo.value.my_uid_rule, document).iterateNext();
+  console.log(node)
   let href = node?.textContent?.trim();
-
+  console.log(href)
   if (!href) {
-    console.log('获取 UID 出错啦！')
-    return CommonResponse.error(-1, '获取 UID 信息出错啦！')
+    console.log('解析 UID 链接出错啦！')
+    return CommonResponse.error(-1, '解析 UID 链接出错啦！')
   }
-  if ((
-      location.href.includes('?id=')
-      || location.href.includes('?uid=')
-      || location.href.includes('?uuid=')
-      || location.href.includes('?u=')
-  ) && !location.href.endsWith(href.substring(6))) {
-    console.log('非本人主页，取消同步！')
-    return CommonResponse.error(-1, '非本人主页，取消同步！')
-  }
+
   let user_id: string | null;
   if (!href.includes('/')) {
     user_id = href.trim()
@@ -223,6 +228,7 @@ async function getUid() {
   if (!user_id) {
     return CommonResponse.error(-1, '非本人主页，取消同步！')
   }
+  myUid.value = user_id
   return CommonResponse.success(user_id)
 }
 
@@ -299,10 +305,34 @@ async function init_button() {
    * 初始化页面按钮
    */
   console.log('开始初始化按钮，当前页面地址：', location.href)
-  if (location.origin === 'https://hdcity.city') {
-    user_detail_page.value = location.pathname.startsWith('/userdetails');
-  } else {
-    user_detail_page.value = true
+  let url = new URL(location.href)
+  let configUserDetailPage = `/${siteInfo.value.page_user.replace('{}', myUid.value)}`;
+  user_detail_page.value = location.href.endsWith(`/${siteInfo.value.page_user.replace('{}', myUid.value)}`)
+      || (`/${siteInfo.value.page_user}`.startsWith(location.pathname) && url.searchParams.size == 0 && !location.href.includes(myUid.value))
+  console.log('当前为个人信息页检测', location.href, "====>", configUserDetailPage, user_detail_page.value)
+  if (user_detail_page.value) {
+    console.log('当前为个人信息页')
+    await nextTick(async () => {
+      // 可以在这里操作已经渲染的 DOM 元素或执行其他需要在 DOM 渲染完成后执行的逻辑
+      console.log('DOM 已更新');
+      await syncCookie()
+    });
+    return;
+  }
+
+  console.log('当前为控制面板页检测', location.href, "====>", siteInfo.value.page_control_panel,
+      location.href.startsWith(siteInfo.value.page_control_panel),
+      (location.pathname.search(/usercp.php/) > 0 && !location.href.includes('?'))
+  )
+  user_detail_page.value = location.href.startsWith(siteInfo.value.page_control_panel) &&
+      (location.pathname.search(/usercp.php/) > 0 && !location.href.includes('?'))
+  if (user_detail_page.value) {
+    console.log('当前为控制面板页')
+    await nextTick(async () => {
+      // 可以在这里操作已经渲染的 DOM 元素或执行其他需要在 DOM 渲染完成后执行的逻辑
+      console.log('DOM 已更新');
+      await syncCookie()
+    });
   }
 // if (location.pathname.includes(siteInfo.value.page_detail) //尝试与配置文件中的信息绑定
   if (location.pathname.startsWith('/details.php')
@@ -322,66 +352,38 @@ async function init_button() {
       message.warning('未获取到种子 id！')
       return
     }
+    await nextTick(async () => {
+      // 可以在这里操作已经渲染的 DOM 元素或执行其他需要在 DOM 渲染完成后执行的逻辑
+      console.log('DOM 已更新');
+      await repeat(tid)
+    });
+    return;
+  }
+  console.log('当前为种子列表页检测：', location.pathname, "====>", `/${siteInfo.value.page_torrents}`, `/${siteInfo.value.page_torrents}`.startsWith(location.pathname))
 
-
-    await repeat(tid)
+  if (location.pathname.endsWith(`/${siteInfo.value.page_torrents.replace('{}', '')}`)) {
 
   }
 // if (location.pathname.includes(siteInfo.value.page_torrents) //尝试与配置文件中的信息绑定
-  if (location.pathname.search(/torrents\/\D*/) > 0 ||
+  if (!(location.pathname.search(/torrents\/\D*/) > 0 ||
       location.pathname.search(/t$/) > 0 ||
       location.pathname.endsWith('/Torrents') ||
       location.pathname.includes('/music.php') ||
       location.pathname.includes('/special.php') ||
       location.pathname.includes('/live.php') ||
       location.pathname.includes('/torrents.php') ||
-      location.pathname.includes('/browse.php')) {
+      location.pathname.includes('/browse.php'))) {
+  } else {
     console.log('当前为种子列表页')
     torrent_list_page.value = true
-    await get_torrent_id_list()
-    // await sync_torrents()
-  }
-  // if (location.pathname.includes(siteInfo.value.page_user) //尝试与配置文件中的信息绑定
-  if (location.pathname.startsWith('/userdetails') ||
-      location.href.includes('/user.php?id=') ||
-      location.href.includes('/p_user/user_detail.php') ||
-      location.href.includes('/user.php?u=') ||
-      location.href.includes('/u/') ||
-      location.href.includes('/index.php?page=usercp&uid=') ||
-      location.href.includes('/home.php?mod=space&do=profile') ||
-      location.href.includes('/Users/profile?uid=') ||
-      location.href.includes('/profile/') ||
-      location.href.includes('/users/')
-  ) {
-    console.log('当前为个人信息页')
     await nextTick(async () => {
-      // 在 DOM 元素渲染完成后执行的代码
       // 可以在这里操作已经渲染的 DOM 元素或执行其他需要在 DOM 渲染完成后执行的逻辑
       console.log('DOM 已更新');
-      await syncCookie()
+      await get_torrent_id_list()
     });
-
+    return;
   }
 
-  // if (location.pathname.includes(siteInfo.value.page_control_panel) //尝试与配置文件中的信息绑定
-  if ((location.pathname.search(/usercp.php/) > 0 && !location.href.includes('?')) ||
-      location.href.includes('p_user/edit_passkey') ||
-      location.href.includes('/index.php?page=usercp&do=pid_c&action=change&uid=') ||
-      location.href.includes('/home.php?mod=space&do=profile') ||
-      location.href.includes('/Users/me') ||
-      location.href.includes('/user/setting') ||
-      location.href.includes('/my.php') ||
-      location.href.includes('/account')
-  ) {
-    console.log('当前为控制面板页')
-    user_detail_page.value = true
-    await nextTick(async () => {
-      // 在 DOM 元素渲染完成后执行的代码
-      // 可以在这里操作已经渲染的 DOM 元素或执行其他需要在 DOM 渲染完成后执行的逻辑
-      console.log('DOM 已更新');
-      await syncCookie()
-    });
-  }
 }
 
 /**
@@ -495,27 +497,30 @@ async function getSiteData() {
   console.log(siteInfo.value.my_uid_rule)
   //获取cookie与useragent
   let user_agent = window.navigator.userAgent
-  let cookieResponse = await getCookieString(location.host)
 
-  if (!cookieResponse.succeed) {
-    console.error(`Cookie获取失败，${cookieResponse.msg}！`)
-    return CommonResponse.error(-1, `Cookie获取失败，${cookieResponse.msg}！`)
-  }
-  cookie.value = cookieResponse.data
+
   //获取UID
   let UserIdRes = await getUid()
   if (!UserIdRes.succeed) {
     console.error('用户ID解析失败！')
     return CommonResponse.error(-1, '用户ID解析失败！')
   }
-  let user_id = UserIdRes.data
-  console.log('站点 UID 解析成功：', user_id)
+  console.log('站点 UID 解析成功：', myUid.value)
+
   /* 处理馒头域名 */
   let host = `${document.location.origin}/`
   if (host.includes("m-team")) {
     cookie.value = localStorage.getItem('auth') || ''
+  } else {
+    let cookieResponse = await getCookieString(location.host)
+    if (!cookieResponse.succeed) {
+      console.error(`Cookie获取失败，${cookieResponse.msg}！`)
+      return CommonResponse.error(-1, `Cookie获取失败，${cookieResponse.msg}！`)
+    }
+    cookie.value = cookieResponse.data
   }
-  let siteData = `user_id=${user_id}&site=${siteInfo.value.name}&cookie=${cookie.value}&user_agent=${user_agent}`
+
+  let siteData = `user_id=${myUid.value}&site=${siteInfo.value.name}&cookie=${cookie.value}&user_agent=${user_agent}`
   /* 处理馒头域名结束 */
 
   if (mySiteId.value != 0) {
