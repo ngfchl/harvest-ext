@@ -228,7 +228,7 @@ export const useSettingStore = defineStore("setting", () => {
      * @param host
      */
     const filterSiteByHost = (host: string) => {
-        host = replaceMTeamDomainIfMatched(host).toLowerCase();
+        // host = replaceMTeamDomainIfMatched(host).toLowerCase();
 
         return Object.values(webSiteList.value!).find(site =>
             site.url.some(url => {
