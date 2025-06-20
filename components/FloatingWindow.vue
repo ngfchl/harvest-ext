@@ -31,6 +31,7 @@ const {
   pushTorrent,
   repeatInfo,
   syncTorrents,
+  cacheServerData,
   loadFromCacheIfAvailable,
   clearSingleSiteHarvestInfo,
 } = settingStore
@@ -446,10 +447,16 @@ function validateEmail(email: string) {
  */
 const clearCurrentCache = async () => {
   // 在新标签页打开弹出窗口
-  const url = browser.runtime.getURL('/popup.html');
-  browser.tabs.create({url: url, active: false});
-  await clearSingleSiteHarvestInfo(siteInfo.value)
-  location.reload()
+  localStorage.removeItem('website')
+  localStorage.removeItem('mySite')
+  console.log('本站缓存清理完毕！重新加载缓存..')
+  message.success('本站缓存清理完毕！正在刷新页面..')
+  cacheServerData().then(() => {
+    console.log('重新加载缓存完成！正在刷新页面..')
+    setTimeout(() => {
+    }, 100)
+    location.reload()
+  })
 }
 
 /**
@@ -506,8 +513,7 @@ async function getSiteData() {
   /* 处理馒头域名 */
   let host = `${document.location.origin}/`
   if (host.includes("m-team")) {
-    host = host.replace("xp.", "api.")
-    host = host.replace("kp.", "api.")
+    cookie.value = localStorage.getItem('auth') || ''
   }
   let siteData = `user_id=${user_id}&site=${siteInfo.value.name}&cookie=${cookie.value}&user_agent=${user_agent}`
   /* 处理馒头域名结束 */
