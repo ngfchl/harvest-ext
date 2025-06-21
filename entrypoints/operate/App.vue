@@ -13,6 +13,7 @@ import {
   EditOutlined,
   EllipsisOutlined,
   FormatPainterOutlined,
+  MailOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   ShareAltOutlined,
@@ -349,6 +350,23 @@ const signSite = async (site: MySite) => {
                 :sm="24"
                 :xl="6">
               <a-card hoverable style="width: 100% !important;min-width: 300px;">
+                <template v-if="mySite.mail>0" #extra>
+                  <a-badge :count="mySite.mail" :offset="[5,-1]">
+                    <mail-outlined style="color: #a6a6a6"/>
+                  </a-badge>
+                </template>
+                <template #title>
+                  <a-avatar :size="20" :src="`${mySite.mirror}/${webSiteList![mySite.site].logo}`"/>
+                  <a-button :href="mySite.mirror" target="_blank" type="link">
+                    <span v-text="mySite.nickname[0].toUpperCase() + mySite.nickname.slice(1)"></span>
+                  </a-button>
+                  <span style="font-size: 12px;color: gray;">
+                      {{
+                      // @ts-ignore
+                      `${mySite.status?.my_level.replace(/\s/g, '') || 'User'}`
+                    }}
+                    </span>
+                </template>
                 <template #actions>
                   <a-tooltip>
                     <template #title>刷新站点数据</template>
@@ -372,7 +390,7 @@ const signSite = async (site: MySite) => {
                 </template>
                 <a-card-meta>
                   <template #avatar>
-                    <a-avatar :src="`${mySite.mirror}/${webSiteList![mySite.site].logo}`"/>
+
                   </template>
                   <template #description>
                     <a-row class="site-data">
@@ -424,17 +442,6 @@ const signSite = async (site: MySite) => {
                         mySite.status?.updated_at.slice(0, 19)
                       }}
                   </span>
-                  </template>
-                  <template #title>
-                    <a-button :href="mySite.mirror" target="_blank" type="link">
-                      <span v-text="mySite.nickname[0].toUpperCase() + mySite.nickname.slice(1)"></span> -
-                    </a-button>
-                    <span style="font-size: 12px;color: gray;">
-                      {{
-                        // @ts-ignore
-                        mySite.status?.my_level.replace(/\s/g, '') || 'User'
-                      }}
-                    </span>
                   </template>
                 </a-card-meta>
               </a-card>
