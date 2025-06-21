@@ -428,10 +428,8 @@ const syncSingleSite = async (site: MySite) => {
 .content {
   display: flex;
   justify-content: center;
-  align-items: center;
-  margin-top: 8px;
+  align-items: start;
   padding: 8px;
-  padding-top: 72px !important;
   overflow-x: hidden;
 }
 
