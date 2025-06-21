@@ -4,6 +4,11 @@ import {fetchApi} from "@/hooks/requests";
 
 export default defineBackground(() => {
     console.log('Hello background!', {id: browser.runtime.id});
+    browser.action.onClicked.addListener(() => {
+        browser.tabs.create({
+            url: browser.runtime.getURL('/operate.html'), // 替换为你的实际页面路径
+        });
+    });
     // 监听消息
     browser.runtime.onMessage.addListener((request, sender: Browser.runtime.MessageSender, sendResponse) => {
         console.log('后台接收到的参数：', request.type, request.payload, 'sender:', sender);
@@ -13,7 +18,7 @@ export default defineBackground(() => {
                 switch (request.type) {
                     case "openPanelUrl":
                         response = await openPanelUrl(request.payload)
-                        console.log('getSiteInfo执行结果', response)
+                        console.log('打开指定页面执行结果', response)
                         break;
                     case "clearSiteHarvestInfo":
                         response = await clearSiteHarvestInfo(request.payload)
