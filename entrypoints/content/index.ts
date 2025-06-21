@@ -212,7 +212,7 @@ export default defineContentScript({
         // 2025-06-18
         'https://www.devtracker.me/*',
         'https://pt.ying.us.kg/*',
-        // 2025-06021
+        // 2025-0621
         'https://13city.online/*',
         'https://cc.mypt.cc/*',
         'https://pt.aling.de/*',
@@ -221,7 +221,7 @@ export default defineContentScript({
         'https://pt.lajidui.top/*',
         'https://our.kelu.one/*',
         'https://bitporn.eu/*',
-        'https://animelovers.club*',
+        'https://animelovers.club/*',
         'https://www.tokyopt.xyz/*',
         'https://sportscult.org/*',
         'https://yoinked.org*',
