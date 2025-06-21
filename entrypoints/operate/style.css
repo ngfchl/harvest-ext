@@ -1,33 +1,37 @@
 
-
 body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  /*min-height: 100vh;*/
-  padding: 0;
-  width: 100%;
-  height: 100%;
-  box-sizing: border-box;
+    margin: 0;
+    /*min-width: 320px;*/
+    /*height: 95vh;*/
+    padding: 0;
+    width: 100vw;
+    /*height: 100%;*/
+    box-sizing: border-box;
 }
 
+.ant-alert-content > .ant-alert-description {
+    font-size: 12px !important;
+}
 
 #app {
-  max-width: 1280px;
-  margin: 0;
-  text-align: center;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    height: 98vh; /* 使用视口高度 */
+    width: 100vw;
 }
 
 @media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
-  }
+    :root {
+        color: #213547;
+        background-color: #ffffff;
+    }
+
+    a:hover {
+        color: #747bff;
+    }
+
+    button {
+        background-color: #f9f9f9;
+    }
 }
