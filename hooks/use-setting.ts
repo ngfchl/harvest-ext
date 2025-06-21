@@ -394,6 +394,45 @@ export const useSettingStore = defineStore("setting", () => {
         }
     }
     /**
+     * 更新单站数据
+     */
+    const refreshSingleSite = async (site: MySite) => {
+        const res = await browser.runtime.sendMessage({
+            type: 'refreshSingleSite',
+            payload: {
+                setting: toRaw(setting.value),
+                mySiteId: site.id,
+            }
+        });
+        showText.value = res.msg;
+    }
+    /**
+     * 更新单站数据
+     */
+    const signSingleSite = async (site: MySite) => {
+        const res = await browser.runtime.sendMessage({
+            type: 'signSingleSite',
+            payload: {
+                setting: toRaw(setting.value),
+                mySiteId: site.id,
+            }
+        });
+        showText.value = res.msg;
+    }
+    /**
+     * 更新单站数据
+     */
+    const searchSingleSite = async (site: MySite, key: string) => {
+        const res = await browser.runtime.sendMessage({
+            type: 'searchSingleSite',
+            payload: {
+                setting: toRaw(setting.value),
+                mySiteId: site.id,
+                key: key,
+            }
+        });
+    }
+    /**
      * 添加单站
      * @param site
      */
@@ -689,13 +728,11 @@ export const useSettingStore = defineStore("setting", () => {
     return {
         autoAddSites,
         autoClearSitesHarvestInfo,
-        clearSingleSiteHarvestInfo,
         autoSyncCookie,
         cacheServerData,
         canSave,
+        clearSingleSiteHarvestInfo,
         count,
-        syncMode,
-        showText,
         downloaders,
         filterMySiteBySiteName,
         filterSiteByHost,
@@ -713,11 +750,17 @@ export const useSettingStore = defineStore("setting", () => {
         mySiteList,
         openPopupInTab,
         pushTorrent,
+        refreshSingleSite,
         repeatInfo,
         saveSetting,
+        searchSingleSite,
         sendSiteInfo,
         setting,
+        showText,
+        signSingleSite,
+        sleep,
         switchImportMode,
+        syncMode,
         syncSingleSiteCookie,
         syncTorrents,
         testDownloader,

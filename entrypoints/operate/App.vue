@@ -12,6 +12,7 @@ import {
   CloudUploadOutlined,
   EditOutlined,
   EllipsisOutlined,
+  FormatPainterOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   ShareAltOutlined,
@@ -35,9 +36,11 @@ const {
 const {
   getSetting,
   testServer,
+  sleep,
   autoAddSites,
   autoSyncCookie,
-  openPopupInTab,
+  refreshSingleSite,
+  signSingleSite,
   isOpenInPopup,
   cacheServerData,
   switchImportMode,
@@ -83,10 +86,52 @@ const checkScreenSize = () => {
   showSider.value = window.innerWidth >= 768;
 }
 const syncSingleSite = async (site: MySite) => {
+  if (showText.value.length > 0) {
+    message.warning('有其他操作正在进行，请稍后再试！');
+    return;
+  }
   showText.value = `正在抓取站点 ${site.nickname || site.site} Cookie信息...`;
   message.loading({content: () => showText.value, duration: 0, type: 'warning'});
   await syncSingleSiteCookie(site)
-  setTimeout(() => message.destroy(), 1000)
+  await sleep(3000)
+  message.destroy()
+  showText.value = ''
+}
+
+const refreshSite = async (site: MySite) => {
+  if (showText.value.length > 0) {
+    message.warning('有其他操作正在进行，请稍后再试！');
+    return;
+  }
+  showText.value = `正在获取站点 ${site.nickname || site.site}最新数据...`
+  message.loading({
+    content: () => showText.value,
+    duration: 0,
+    type: 'warning',
+    style: {
+      maxWidth: '360px',
+      margin: 'auto',
+      left: '40vw',
+      top: '40px',
+    },
+  });
+  await refreshSingleSite(site)
+  await cacheServerData()
+  await sleep(3000)
+  message.destroy()
+  showText.value = ''
+}
+const signSite = async (site: MySite) => {
+  if (showText.value.length > 0) {
+    message.warning('有其他操作正在进行，请稍后再试！');
+    return;
+  }
+  showText.value = `正在签到站点 ${site.nickname || site.site}...`
+  message.loading({content: () => showText.value, duration: 0, type: 'warning'});
+  await signSingleSite(site)
+  await sleep(3000)
+  message.destroy()
+  showText.value = ''
 }
 </script>
 
@@ -305,9 +350,25 @@ const syncSingleSite = async (site: MySite) => {
                 :xl="6">
               <a-card hoverable style="width: 100% !important;min-width: 300px;">
                 <template #actions>
-                  <sync-outlined key="sync" @click="syncSingleSite(mySite)"/>
-                  <edit-outlined key="edit"/>
-                  <ellipsis-outlined key="ellipsis"/>
+                  <a-tooltip>
+                    <template #title>刷新站点数据</template>
+                    <format-painter-outlined key="refresh" @click="refreshSite(mySite)"/>
+                  </a-tooltip>
+                  <a-tooltip>
+                    <template #title>签到签到</template>
+                    <edit-outlined v-if="mySite.sign_in" key="edit" @click="signSite(mySite)"/>
+                  </a-tooltip>
+                  <a-tooltip>
+                    <template #title>同步 Cookie</template>
+                    <sync-outlined key="sync" @click="syncSingleSite(mySite)"/>
+                  </a-tooltip>
+
+                  <a-tooltip>
+                    <template #title>更多功能，敬请期待</template>
+                    <ellipsis-outlined key="ellipsis"/>
+                  </a-tooltip>
+
+
                 </template>
                 <a-card-meta>
                   <template #avatar>
@@ -365,9 +426,9 @@ const syncSingleSite = async (site: MySite) => {
                   </span>
                   </template>
                   <template #title>
-                    <span v-text="mySite.nickname[0].toUpperCase() + mySite.nickname.slice(1)"></span> -
-
-                    <span></span>
+                    <a-button :href="mySite.mirror" target="_blank" type="link">
+                      <span v-text="mySite.nickname[0].toUpperCase() + mySite.nickname.slice(1)"></span> -
+                    </a-button>
                     <span style="font-size: 12px;color: gray;">
                       {{
                         // @ts-ignore

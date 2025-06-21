@@ -24,17 +24,33 @@ export default defineBackground(() => {
                         response = await clearSiteHarvestInfo(request.payload)
                         console.log('清理收割机任务执行结果', response)
                         break;
+                    case "refreshSingleSite":
+                        response = await refreshSingleSiteApi(request.payload)
+                        console.log('刷新单站数据执行结果', response)
+                        break;
+                    case "searchSingleSite":
+                        response = await searchSingleSiteApi(request.payload)
+                        console.log('刷新单站数据执行结果', response)
+                        break;
+                    case "searchMultiSite":
+                        response = await searchMultiSiteApi(request.payload)
+                        console.log('刷新单站数据执行结果', response)
+                        break;
+                    case "signSingleSite":
+                        response = await signSingleSiteApi(request.payload)
+                        console.log('刷新单站数据执行结果', response)
+                        break;
                     case "getSiteInfo":
                         response = await getSite(request.payload)
-                        console.log('getSiteInfo执行结果', response)
+                        console.log('获取单站站点配置执行结果', response)
                         break;
                     case "getWebSiteList":
                         response = await getWebSiteListApi(request.payload)
-                        console.log('getSiteInfo执行结果', response)
+                        console.log('获取站点配置列表执行结果', response)
                         break;
                     case "getMySiteList":
                         response = await getMySiteListApi(request.payload)
-                        console.log('getSiteInfo执行结果', response)
+                        console.log('获取已有站点列表执行结果', response)
                         break;
                     case "sendSiteInfo":
                         response = await sendSiteInfoApi(request.payload, sender)
@@ -126,15 +142,101 @@ const getSite = async (params: {
     host: string
 }): Promise<CommonResponse<SiteInfo | null> | null> => {
     // 处理m-team域名特殊规则
-    let host = params.host;
-    if (host.includes("m-team")) {
-        host = host.replace("xp.", "api.").replace("kp.", "api.");
-    }
-
+    // let host = params.host;
+    // if (host.includes("m-team")) {
+    //     host = host.replace("xp.", "api.").replace("kp.", "api.");
+    // }
     return fetchApi({
         ...params,
-        path: `api/auth/monkey/get_site/${host}`,
+        path: `api/auth/monkey/get_site/${params.host}`,
         method: "GET",
+    });
+}
+/**
+ * 刷新
+ * @returns {Promise<Object|null>} 站点信息对象或null
+ * @param params
+ */
+const refreshSingleSiteApi = async (params: {
+    setting: Settings,
+    mySiteId: number
+}): Promise<CommonResponse<SiteInfo | null> | null> => {
+    // 处理m-team域名特殊规则
+    // let host = params.host;
+    // if (host.includes("m-team")) {
+    //     host = host.replace("xp.", "api.").replace("kp.", "api.");
+    // }
+    return fetchApi({
+        ...params,
+        path: `/api/mysite/info/${params.mySiteId}`,
+        method: "GET",
+    });
+}
+/**
+ * 签到
+ * @returns {Promise<Object|null>} 站点信息对象或null
+ * @param params
+ */
+const signSingleSiteApi = async (params: {
+    setting: Settings,
+    mySiteId: number
+}): Promise<CommonResponse<SiteInfo | null> | null> => {
+    // 处理m-team域名特殊规则
+    // let host = params.host;
+    // if (host.includes("m-team")) {
+    //     host = host.replace("xp.", "api.").replace("kp.", "api.");
+    // }
+    return fetchApi({
+        ...params,
+        path: `/api/mysite/sign/${params.mySiteId}`,
+        method: "GET",
+    });
+}
+/**
+ * 搜索
+ * @returns {Promise<Object|null>} 站点信息对象或null
+ * @param params
+ */
+const searchSingleSiteApi = async (params: {
+    setting: Settings,
+    mySiteId: number,
+    key: string,
+}): Promise<CommonResponse<SiteInfo | null> | null> => {
+    // 处理m-team域名特殊规则
+    // let host = params.host;
+    // if (host.includes("m-team")) {
+    //     host = host.replace("xp.", "api.").replace("kp.", "api.");
+    // }
+    return fetchApi({
+        ...params,
+        path: `/api/mysite/search/${params.mySiteId}?key=${params.key}`,
+        method: "GET",
+    });
+}
+
+/**
+ * 搜索
+ * @returns {Promise<Object|null>} 站点信息对象或null
+ * @param params
+ */
+const searchMultiSiteApi = async (params: {
+    setting: Settings,
+    payload: {
+        key: string,
+        max_count: number,
+        sites: number[]
+    }
+}): Promise<CommonResponse<SiteInfo | null> | null> => {
+    // 处理m-team域名特殊规则
+    // let host = params.host;
+    // if (host.includes("m-team")) {
+    //     host = host.replace("xp.", "api.").replace("kp.", "api.");
+    // }
+    return fetchApi({
+        ...params,
+        path: `/api/mysite/search`,
+        data: params,
+        method: "POST",
     });
 }
 
