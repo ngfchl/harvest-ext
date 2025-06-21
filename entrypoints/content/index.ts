@@ -224,7 +224,7 @@ export default defineContentScript({
         'https://animelovers.club/*',
         'https://www.tokyopt.xyz/*',
         'https://sportscult.org/*',
-        'https://yoinked.org*',
+        'https://yoinked.org/*',
         'https://wiiii.top/*',
         'https://ptlao.top/*',
         'https://pt.tey.cc/*',
