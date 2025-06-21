@@ -291,16 +291,7 @@ export const useSettingStore = defineStore("setting", () => {
         console.log('需要同步的站点：', siteList);
         for (const site of siteList) {
             count.value += 1
-            console.log(`正在同步的站点：${site.nickname} ==> ${site.site}`)
-            let {host} = new URL(site.mirror!);
-            const response = await getCookieString(host);
-            if (response.succeed) {
-                // 保存Cookie到插件存储（推荐使用chrome.storage）
-                let siteData = `user_id=${site.user_id}&site=${site.site}&cookie=${response.data}&user_agent=${window.navigator.userAgent}`
-                const res = await sendSiteInfo(siteData)
-                console.log(res.msg)
-                showText.value = res.msg;
-            }
+            await syncSingleSiteCookie(site)
         }
         syncMode.value = false
         count.value = 0
@@ -310,6 +301,24 @@ export const useSettingStore = defineStore("setting", () => {
             message.destroy()
         }, 3000)
     }
+
+    /**
+     * 后台同步单站 Cookie
+     * @param site
+     */
+    async function syncSingleSiteCookie(site: MySite) {
+        console.log(`正在同步的站点：${site.nickname} ==> ${site.site}`)
+        let {host} = new URL(site.mirror!);
+        const response = await getCookieString(host);
+        if (response.succeed) {
+            // 保存Cookie到插件存储（推荐使用chrome.storage）
+            let siteData = `user_id=${site.user_id}&site=${site.site}&cookie=${response.data}&user_agent=${window.navigator.userAgent}`
+            const res = await sendSiteInfo(siteData)
+            console.log(res.msg)
+            showText.value = res.msg;
+        }
+    }
+
     /**
      * 判断 popup 弹出也是在标签页还是弹出框中
      */
@@ -424,8 +433,7 @@ export const useSettingStore = defineStore("setting", () => {
                 console.error(`处理URL ${url}时出错:`, error);
             }
         }
-
-        console.warn('所有URL均未能获取有效Cookie');
+        console.warn(`${site.name} 所有URL均未能获取有效Cookie`);
     };
 
 
@@ -710,6 +718,7 @@ export const useSettingStore = defineStore("setting", () => {
         sendSiteInfo,
         setting,
         switchImportMode,
+        syncSingleSiteCookie,
         syncTorrents,
         testDownloader,
         testServer,
