@@ -354,9 +354,9 @@ const signSite = async (site: MySite) => {
                     <template #title>刷新站点数据</template>
                     <format-painter-outlined key="refresh" @click="refreshSite(mySite)"/>
                   </a-tooltip>
-                  <a-tooltip>
+                  <a-tooltip v-if="mySite.sign_in">
                     <template #title>签到签到</template>
-                    <edit-outlined v-if="mySite.sign_in" key="edit" @click="signSite(mySite)"/>
+                    <edit-outlined key="edit" @click="signSite(mySite)"/>
                   </a-tooltip>
                   <a-tooltip>
                     <template #title>同步 Cookie</template>
