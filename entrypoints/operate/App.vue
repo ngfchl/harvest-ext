@@ -2,6 +2,7 @@
 import {computed, onMounted} from 'vue';
 import {useSettingStore} from "@/hooks/use-setting";
 import {storeToRefs} from "pinia";
+import {message} from "ant-design-vue";
 
 const settingStore = useSettingStore()
 const {
@@ -9,6 +10,10 @@ const {
   canSave,
   importMode,
   isOpenInPopupFlag,
+  count,
+  syncMode,
+  mySiteList,
+  showText,
 } = storeToRefs(settingStore)
 const {
   getSetting,
@@ -29,7 +34,10 @@ const formMaxWidth = computed(() => {
   return window.innerWidth < 350 ? '90%' : '350px';
 });
 
-
+const oneKeySync = async () => {
+  message.loading({content: () => showText.value, duration: 0, type: 'warning'});
+  await autoSyncCookie()
+}
 onMounted(async () => {
   console.log("打开弹出页面！:")
   await getSetting()
@@ -48,6 +56,16 @@ onMounted(async () => {
     </a-layout-header>
     <a-layout-content class="content">
       <a-space align="center" direction="vertical">
+        <a-alert
+            v-if="syncMode"
+            :message="showText"
+            type="info"
+        />
+        <a-alert
+            v-if="syncMode"
+            :message="`正在同步站点 Cookie ${count}/${Object.values(mySiteList!).filter((site) => site.available).length}`"
+            type="success"
+        />
         <a-space size="small">
           <a-form
               :style="{ maxWidth: formMaxWidth }"
@@ -83,7 +101,7 @@ onMounted(async () => {
           </a-form>
         </a-space>
         <a-space>
-          <a-button block ghost type="primary" @click="testServer">
+          <a-button v-if="!canSave" block ghost type="primary" @click="testServer">
             登录鉴权
           </a-button>
           <a-button
@@ -123,7 +141,7 @@ onMounted(async () => {
             <a-button
                 block
                 type="primary"
-                @click="autoSyncCookie"
+                @click="oneKeySync"
             >
               一键同步
             </a-button>
