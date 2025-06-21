@@ -17,6 +17,9 @@ export default defineConfig({
         host_permissions: [
             "*://*/*",
         ], // 或精准配置
+        action: {
+            default_title: '收割机助手',
+        },
         browser_specific_settings: {
             gecko: {
                 id: "ngfchl@mail.com",
