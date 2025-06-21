@@ -13,8 +13,10 @@ export const useSettingStore = defineStore("setting", () => {
     const webSiteList = ref<{ [key: string]: WebSite }>()
     const mySiteList = ref<{ [key: string]: MySite }>()
     const importMode = ref<boolean>(false)
+    const syncMode = ref<boolean>(false)
     const isOpenInPopupFlag = ref<boolean>(false)
-
+    const count = ref(0)
+    const showText = ref('')
     /**
      * 从存储加载设置
      */
@@ -56,8 +58,10 @@ export const useSettingStore = defineStore("setting", () => {
 
     // 自动初始化 - 正确处理Promise
     const initialize = async () => {
-        await getSetting();
-        await loadFromCacheIfAvailable();
+        const res = await getSetting();
+        if (res.succeed) {
+            await loadFromCacheIfAvailable();
+        }
     };
 
     /**
@@ -270,10 +274,13 @@ export const useSettingStore = defineStore("setting", () => {
      */
     const autoSyncCookie = async (): Promise<void> => {
         console.log('开始同步站点 Cookie', mySiteList.value)
+        showText.value = '开始同步站点 Cookie';
+        syncMode.value = true
         await loadFromCacheIfAvailable()
-        const siteList = Object.values(mySiteList.value!);
+        const siteList = Object.values(mySiteList.value!).filter((site) => site.available);
         console.log('需要同步的站点：', siteList);
         for (const site of siteList) {
+            count.value += 1
             console.log(`正在同步的站点：${site.nickname} ==> ${site.site}`)
             let {host} = new URL(site.mirror!);
             const response = await getCookieString(host);
@@ -282,9 +289,16 @@ export const useSettingStore = defineStore("setting", () => {
                 let siteData = `user_id=${site.user_id}&site=${site.site}&cookie=${response.data}&user_agent=${window.navigator.userAgent}`
                 const res = await sendSiteInfo(siteData)
                 console.log(res.msg)
+                showText.value = res.msg;
             }
         }
+        syncMode.value = false
+        count.value = 0
+        message.success(`站点 Cookie 同步完成，共同步${count.value} / ${siteList.length}`);
         await cacheServerData()
+        setTimeout(() => {
+            message.destroy()
+        }, 3000)
     }
     /**
      * 判断 popup 弹出也是在标签页还是弹出框中
@@ -306,7 +320,7 @@ export const useSettingStore = defineStore("setting", () => {
      */
     const openPopupInTab = async () => {
         if (isOpenInPopupFlag.value) {
-            const url = browser.runtime.getURL('/popup.html');
+            const url = browser.runtime.getURL('/operate.html');
             browser.tabs.create({url});
         }
     }
@@ -316,11 +330,11 @@ export const useSettingStore = defineStore("setting", () => {
     const switchImportMode = async () => {
         importMode.value = !importMode.value;
         await storage.setItem('local:importMode', importMode.value)
-        if (importMode.value && isOpenInPopupFlag.value) {
-            // 在新标签页打开弹出窗口
-            const url = browser.runtime.getURL('/popup.html');
-            browser.tabs.create({url});
-        }
+        // if (importMode.value && isOpenInPopupFlag.value) {
+        //     // 在新标签页打开弹出窗口
+        //     const url = browser.runtime.getURL('/operate.html');
+        //     browser.tabs.create({url});
+        // }
     }
 
     /**
@@ -661,6 +675,9 @@ export const useSettingStore = defineStore("setting", () => {
         autoSyncCookie,
         cacheServerData,
         canSave,
+        count,
+        syncMode,
+        showText,
         downloaders,
         filterMySiteBySiteName,
         filterSiteByHost,
