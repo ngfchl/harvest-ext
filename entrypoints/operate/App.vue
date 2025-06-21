@@ -98,6 +98,7 @@ const syncSingleSite = async (site: MySite) => {
         :collapsible="true"
         :zeroWidthTriggerStyle="{
           top: 0,
+          backgroundColor: 'transparent !important',
         }"
         collapsedWidth="0"
         style="background: #FFF;text-align: center;"
@@ -325,34 +326,54 @@ const syncSingleSite = async (site: MySite) => {
                       <a-col :span="8">
                         <share-alt-outlined/>
                         {{
+                          // @ts-ignore
                           mySite.status?.downloaded ? (mySite.status?.uploaded / mySite.status?.downloaded).toFixed() : 0
                         }}
                         [{{ mySite.status?.publish || 0 }}]
                       </a-col>
                       <a-col :span="8">
                         <cloud-upload-outlined/>
-                        {{ prettyBytes(mySite.status?.uploaded || 0) }}
+
+                        {{
+                          // @ts-ignore
+                          prettyBytes(mySite.status?.uploaded || 0)
+                        }}
                       </a-col>
                       <a-col :span="8">
                         <cloud-download-outlined/>
-                        {{ prettyBytes(mySite.status?.downloaded || 0) }}
+                        {{
+                          // @ts-ignore
+                          prettyBytes(mySite.status?.downloaded || 0)
+                        }}
                       </a-col>
                       <a-col :span="8">
                         <cloud-sync-outlined/>
-                        {{ prettyBytes(mySite.status?.seed_volume || 0) }}
+                        {{
+                          // @ts-ignore
+                          prettyBytes(mySite.status?.seed_volume || 0)
+                        }}
                       </a-col>
 
                     </a-row>
 
                     <span class="site-data">
                     <clock-circle-outlined/>
-                    更新时间：{{ mySite.status?.updated_at.slice(0, 19) }}
+                    更新时间：{{
+                        // @ts-ignore
+                        mySite.status?.updated_at.slice(0, 19)
+                      }}
                   </span>
                   </template>
                   <template #title>
                     <span v-text="mySite.nickname[0].toUpperCase() + mySite.nickname.slice(1)"></span> -
-                    <span style="font-size: 12px;color: gray;"
-                          v-text="mySite.status?.my_level.replace(/\s/g, '') || 'User' "></span>
+
+                    <span></span>
+                    <span style="font-size: 12px;color: gray;">
+                      {{
+                        // @ts-ignore
+                        mySite.status?.my_level.replace(/\s/g, '') || 'User'
+                      }}
+                    </span>
                   </template>
                 </a-card-meta>
               </a-card>
