@@ -339,7 +339,7 @@ export interface MySite {
     /** 签到信息，JSON格式 */
     sign_info: SignInfoByDate;
     /** 站点数据，JSON格式 */
-    status: StatusByDate;
+    status: StatusByDate | StatusInfo | null;
 }
 
 /**
@@ -352,7 +352,7 @@ interface StatusByDate {
 /**
  * 单个日期的状态信息接口
  */
-interface StatusInfo {
+export interface StatusInfo {
     ratio: number;
     downloaded: number;
     uploaded: number;

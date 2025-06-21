@@ -1,4 +1,4 @@
-import {CacheData, CommonResponse, Downloader, MySite, Settings, SiteInfo, Torrent, WebSite} from "@/types";
+import {CacheData, CommonResponse, Downloader, MySite, Settings, SiteInfo, StatusInfo, Torrent, WebSite} from "@/types";
 import {defineStore} from "pinia";
 import {ref, toRaw} from "vue";
 import {message} from "ant-design-vue";
@@ -207,12 +207,22 @@ export const useSettingStore = defineStore("setting", () => {
         if (!response.succeed) {
             return response;
         }
-        return CommonResponse.success(response.data.reduce((acc: { [key: number]: MySite }, site: MySite) => {
-            // 创建浅拷贝并立即删除不需要的属性
+        const data = response.data.reduce((acc: { [key: number]: MySite }, site: MySite) => {
             const {status, sign_info, ...processedSite} = site;
-            acc[site.id] = <MySite>processedSite;
+            // 获取最新状态日期（如果有）
+
+            let mySite: MySite = <MySite>processedSite
+            if (status) {
+                // @ts-ignore
+                const latestDate = Object.keys(status).sort().pop()
+                // @ts-ignore
+                mySite.status = <StatusInfo | null>status[latestDate]
+            }
+            acc[site.id] = mySite
             return acc;
-        }, {}))
+        }, {})
+        console.log('站点列表测试标记', data)
+        return CommonResponse.success(data)
     }
     /**
      * 使用已有的站点 ID 查找站点及配置信息
