@@ -52,6 +52,7 @@ const {
 const showSider = ref(false);
 const showSiteList = ref(false);
 const collapsed = ref(false);
+const privateMode = ref(false);
 const searchKey = ref('');
 
 // 响应式表单最大宽度
@@ -61,6 +62,10 @@ const formMaxWidth = computed(() => {
 const switchShowSiteList = () => {
   showSiteList.value = !showSiteList.value;
   localStorage.setItem('local:showSiteList', JSON.stringify(showSiteList.value));
+}
+const switchPrivateMode = () => {
+  privateMode.value = !privateMode.value;
+  localStorage.setItem('local:privateMode', JSON.stringify(privateMode.value));
 }
 const oneKeySync = async () => {
   message.loading({content: () => showText.value, duration: 0, type: 'warning'});
@@ -75,6 +80,7 @@ onMounted(async () => {
   checkScreenSize();
   window.addEventListener('resize', checkScreenSize);
   showSiteList.value = JSON.parse(localStorage.getItem('switchShowSiteList') || 'true');
+  privateMode.value = JSON.parse(localStorage.getItem('privateMode') || 'true');
 });
 
 onBeforeUnmount(() => {
@@ -235,6 +241,16 @@ const signSite = async (site: MySite) => {
               <span v-if="showSiteList">隐藏站点</span>
               <span v-else>显示站点</span>
             </a-button>
+            <a-button
+                v-if="showSiteList"
+                :danger="privateMode"
+                block
+                type="primary"
+                @click="switchPrivateMode"
+            >
+              <span v-if="privateMode">公开模式</span>
+              <span v-else>隐私模式</span>
+            </a-button>
             <a-popover title="缓存服务器数据">
               <template #content>
                 <p>从收割机服务器拉取站点配置列表，已有站点列表，下载器列表，缓存到本地，减少交互，提高效率</p>
@@ -356,9 +372,10 @@ const signSite = async (site: MySite) => {
                   </a-badge>
                 </template>
                 <template #title>
-                  <a-avatar :size="20" :src="`${mySite.mirror}/${webSiteList![mySite.site].logo}`"/>
+                  <a-avatar v-if="!privateMode" :size="20" :src="`${mySite.mirror}/${webSiteList![mySite.site].logo}`"/>
                   <a-button :href="mySite.mirror" target="_blank" type="link">
-                    <span v-text="mySite.nickname[0].toUpperCase() + mySite.nickname.slice(1)"></span>
+                    <span
+                        v-text="`${mySite.nickname[0].toUpperCase()}${privateMode ? '*' :mySite.nickname.slice(1)}`"></span>
                   </a-button>
                   <span style="font-size: 12px;color: gray;">
                       {{
