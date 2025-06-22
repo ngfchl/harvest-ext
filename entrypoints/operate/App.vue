@@ -6,6 +6,7 @@ import {message} from "ant-design-vue";
 import {
   ArrowDownOutlined,
   ArrowUpOutlined,
+  BellOutlined,
   ClockCircleOutlined,
   CloudDownloadOutlined,
   CloudSyncOutlined,
@@ -365,13 +366,16 @@ const signSite = async (site: MySite) => {
             <a-col
                 v-for="mySite in Object.values(mySiteList!).filter(
                     (site) => site.available && ( site.nickname.includes(searchKey.trim()) || site.site.includes(searchKey.trim())  || site.mirror?.includes(searchKey.trim()))
-                    ).sort((a,b)=>b.mail - a.mail)"
+                    ).sort((a,b)=>b.mail + b.notice - (a.mail + a.notice))"
                 :lg="8" :md="12"
                 :sm="24"
                 :xl="6">
               <a-card hoverable style="width: 100% !important;min-width: 300px;">
-                <template v-if="mySite.mail>0" #extra>
-                  <a-badge :count="mySite.mail" :offset="[5,-1]">
+                <template #extra>
+                  <a-badge v-if="mySite.notice > 0" :count="mySite.notice" :offset="[2,0]">
+                    <bell-outlined style="color: #a6a6a6"/>
+                  </a-badge>
+                  <a-badge v-if="mySite.mail > 0" :count="mySite.mail" :offset="[2,0]">
                     <mail-outlined style="color: #a6a6a6"/>
                   </a-badge>
                 </template>

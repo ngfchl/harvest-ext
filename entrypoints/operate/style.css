@@ -35,3 +35,12 @@ body {
         background-color: #f9f9f9;
     }
 }
+
+sup.ant-scroll-number.ant-badge-count {
+    width: 12px !important;
+    min-width: 10px;
+    font-size: 9px !important;
+    height: 12px !important;
+    line-height: 12px !important;
+    padding: 0 !important;
+}
