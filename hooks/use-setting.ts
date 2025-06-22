@@ -669,7 +669,7 @@ export const useSettingStore = defineStore("setting", () => {
     ) => {
         return await browser.runtime.sendMessage({
             type: 'pushTorrent',
-            payload: {
+            payload: JSON.parse(JSON.stringify({
                 setting: toRaw(setting.value),
                 downloaderId: downloaderId,
                 mySiteId: mySiteId,
@@ -678,7 +678,7 @@ export const useSettingStore = defineStore("setting", () => {
                 cookie: cookie,
                 savePath: savePath,
                 urlList: urlList,
-            }
+            }))
         })
     }
     /**

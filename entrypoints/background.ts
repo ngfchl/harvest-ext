@@ -327,7 +327,7 @@ const pushTorrentApi = async (params: {
             category: params.category,
             save_path: params.savePath,
             urls: params.urlList,
-            tags: [params.siteName, "harvest-monkey"],
+            tags: JSON.stringify([params.siteName, "harvest-monkey"]),
         }),
         contentType: "application/x-www-form-urlencoded",
     });
