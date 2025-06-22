@@ -167,7 +167,7 @@ const refreshSingleSiteApi = async (params: {
     // }
     return fetchApi({
         ...params,
-        path: `/api/mysite/info/${params.mySiteId}`,
+        path: `api/mysite/info/${params.mySiteId}`,
         method: "GET",
     });
 }
@@ -187,7 +187,7 @@ const signSingleSiteApi = async (params: {
     // }
     return fetchApi({
         ...params,
-        path: `/api/mysite/sign/${params.mySiteId}`,
+        path: `api/mysite/sign/${params.mySiteId}`,
         method: "GET",
     });
 }
@@ -208,7 +208,7 @@ const searchSingleSiteApi = async (params: {
     // }
     return fetchApi({
         ...params,
-        path: `/api/mysite/search/${params.mySiteId}?key=${params.key}`,
+        path: `api/mysite/search/${params.mySiteId}?key=${params.key}`,
         method: "GET",
     });
 }
@@ -233,7 +233,7 @@ const searchMultiSiteApi = async (params: {
     // }
     return fetchApi({
         ...params,
-        path: `/api/mysite/search`,
+        path: `api/mysite/search`,
         data: params,
         method: "POST",
     });
