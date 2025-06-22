@@ -452,7 +452,11 @@ const writeSiteCookies = async (site: MySite) => {
           <a-row v-if="showSiteList" :gutter="[12,8]" justify="space-around" type="flex">
             <a-col
                 v-for="mySite in Object.values(mySiteList!).filter(
-                    (site) => site.available && ( site.nickname.includes(searchKey.trim()) || site.site.includes(searchKey.trim())  || site.mirror?.includes(searchKey.trim()))
+                    (site) => site.available && (
+                        site.nickname.toLowerCase().includes(searchKey.trim().toLowerCase()) ||
+                        site.site.toLowerCase().includes(searchKey.trim().toLowerCase())  ||
+                        site.mirror?.toLowerCase().includes(searchKey.trim().toLowerCase())
+                        )
                     ).sort((a,b)=>b.mail + b.notice - (a.mail + a.notice))"
                 :lg="8" :md="12"
                 :sm="24"
