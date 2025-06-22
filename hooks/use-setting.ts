@@ -296,9 +296,8 @@ export const useSettingStore = defineStore("setting", () => {
 
         message.success(`站点 Cookie 同步完成，共同步${count.value} / ${siteList.length}`);
         await cacheServerData()
-        setTimeout(() => {
-            message.destroy()
-        }, 3000)
+        await sleep(3000)
+        message.destroy()
         syncMode.value = false
         count.value = 0
     }
@@ -318,9 +317,7 @@ export const useSettingStore = defineStore("setting", () => {
         }
 
         message.success(`导入 Cookie 到浏览器完成，共导入${count.value} / ${siteList.length}`);
-        setTimeout(() => {
-            message.destroy()
-        }, 3000)
+        await sleep(3000)
         importCookieMode.value = false
         count.value = 0
     }
