@@ -243,13 +243,13 @@ const signSite = async (site: MySite) => {
             </a-button>
             <a-button
                 v-if="showSiteList"
-                :danger="privateMode"
+                :danger="!privateMode"
                 block
                 type="primary"
                 @click="switchPrivateMode"
             >
-              <span v-if="privateMode">公开模式</span>
-              <span v-else>隐私模式</span>
+              <span v-if="privateMode">隐私模式</span>
+              <span v-else>公开模式</span>
             </a-button>
             <a-popover title="缓存服务器数据">
               <template #content>
@@ -361,7 +361,9 @@ const signSite = async (site: MySite) => {
 
           <a-row v-if="showSiteList" :gutter="[12,8]" justify="space-around" type="flex">
             <a-col
-                v-for="mySite in Object.values(mySiteList!).filter((site) => site.available && ( site.nickname.includes(searchKey.trim()) || site.site.includes(searchKey.trim())  || site.mirror?.includes(searchKey.trim())))"
+                v-for="mySite in Object.values(mySiteList!).filter(
+                    (site) => site.available && ( site.nickname.includes(searchKey.trim()) || site.site.includes(searchKey.trim())  || site.mirror?.includes(searchKey.trim()))
+                    ).sort((a,b)=>b.mail - a.mail)"
                 :lg="8" :md="12"
                 :sm="24"
                 :xl="6">
