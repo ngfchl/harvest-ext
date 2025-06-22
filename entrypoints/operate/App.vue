@@ -95,10 +95,13 @@ const oneKeyImportCookies = async () => {
 }
 onMounted(async () => {
   console.log("打开弹出页面！:")
-  await getSetting()
+  const res = await getSetting()
   console.log(setting.value)
-  cacheServerData().then(res => {
-  })
+  if (!res.succeed) {
+    message.warning('服务器信息加载失败，请先配置服务器信息...');
+    return
+  }
+  await cacheServerData()
   isOpenInPopupFlag.value = await isOpenInPopup()
   importMode.value = await storage.getItem('local:importMode') || false
   checkScreenSize();
@@ -172,7 +175,7 @@ const writeSiteCookies = async (site: MySite) => {
   showText.value = `正在写入 ${site.nickname || site.site} 站点Cookie...`
   message.loading({content: () => showText.value, duration: 0, type: 'warning'});
   await writeSingleSiteCookies(site)
-  await sleep(3000)
+  await sleep(1000)
   message.destroy()
   showText.value = ''
 }
@@ -436,6 +439,7 @@ const writeSiteCookies = async (site: MySite) => {
                 v-model:value="searchKey" :bordered="false"
                 :loading="searchKey.length > 0"
                 allow-clear
+                class="custom-input-search"
                 placeholder="站点快速搜索"
             />
           </a-col>
@@ -616,5 +620,18 @@ const writeSiteCookies = async (site: MySite) => {
 .form-container {
   width: 100%;
   margin: 0 auto;
+  padding: 0 16px;
 }
+
+::v-deep(.custom-input-search input) {
+  color: floralwhite;
+}
+
+::v-deep(.custom-input-search .ant-input-search-button) {
+  background-color: rgba(27, 108, 142, 0.0) !important;
+  color: floralwhite !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
 </style>
