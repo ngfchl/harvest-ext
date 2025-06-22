@@ -1,4 +1,4 @@
-import {CommonResponse, Settings, SiteInfo, Torrent} from "@/types";
+import {CommonResponse, MySite, Settings, SiteInfo, Torrent} from "@/types";
 import {fetchApi} from "@/hooks/requests";
 
 
@@ -16,6 +16,10 @@ export default defineBackground(() => {
             try {
                 let response;
                 switch (request.type) {
+                    case "writeSingleSiteCookies":
+                        response = await writeSingleSiteCookiesApi(request.payload)
+                        console.log('打开指定页面执行结果', response)
+                        break;
                     case "openPanelUrl":
                         response = await openPanelUrl(request.payload)
                         console.log('打开指定页面执行结果', response)
@@ -424,4 +428,43 @@ async function clearSiteHarvestInfo(params: {
             reject(err);
         });
     });
+}
+
+/**
+ * 将整条 Cookie 字符串写入浏览器
+ * @param params
+ */
+export async function writeSingleSiteCookiesApi(params: {
+    setting: Settings,
+    mySite: MySite,
+}) {
+    const mySite = params.mySite;
+    try {
+        const secure = mySite.mirror!.startsWith('https://');
+        const {hostname} = new URL(mySite.mirror!); // 提取域名
+
+        const pairs = mySite.cookie.split(';');
+        for (const pair of pairs) {
+            const [name, ...rest] = pair.trim().split('=');
+            const value = rest.join('=');
+            if (!name || !value) continue;
+
+            browser.cookies.set({
+                url: mySite.mirror!,
+                name,
+                value,
+                domain: hostname, // 用主机名
+                path: '/',
+                secure,
+                httpOnly: false,
+                sameSite: 'lax',
+                expirationDate: Math.floor(Date.now() / 1000) + 3600 * 24 * 365,
+            });
+
+        }
+        return CommonResponse.success(null, `✅${mySite.nickname || mySite.site} Cookie 写入完成！`)
+    } catch (err) {
+        console.error(err);
+        return CommonResponse.error(-1, `❌ ${mySite.nickname || mySite.site} Cookie 写入失败！`);
+    }
 }
