@@ -75,6 +75,8 @@ onMounted(async () => {
   console.log("打开弹出页面！:")
   await getSetting()
   console.log(setting.value)
+  cacheServerData().then(res => {
+  })
   isOpenInPopupFlag.value = await isOpenInPopup()
   importMode.value = await storage.getItem('local:importMode') || false
   checkScreenSize();
