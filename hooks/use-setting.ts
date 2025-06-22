@@ -437,7 +437,7 @@ export const useSettingStore = defineStore("setting", () => {
             type: 'writeSingleSiteCookies',
             payload: {
                 setting: toRaw(setting.value),
-                mySite: site,
+                mySite: JSON.parse(JSON.stringify(toRaw(site))),
             }
         });
         showText.value = res.msg;
