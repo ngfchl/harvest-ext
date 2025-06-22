@@ -11,6 +11,7 @@ import {
   CloudDownloadOutlined,
   CloudSyncOutlined,
   CloudUploadOutlined,
+  DownloadOutlined,
   EditOutlined,
   EllipsisOutlined,
   FormatPainterOutlined,
@@ -28,6 +29,7 @@ const {
   setting,
   canSave,
   importMode,
+  importCookieMode,
   isOpenInPopupFlag,
   count,
   syncMode,
@@ -42,15 +44,16 @@ const {
   autoAddSites,
   autoSyncCookie,
   refreshSingleSite,
+  autoImportCookie,
   signSingleSite,
   isOpenInPopup,
   cacheServerData,
   switchImportMode,
   syncSingleSiteCookie,
   autoClearSitesHarvestInfo,
+  writeSingleSiteCookies,
 } = settingStore
 // const mySiteId = ref<number>(0)
-const showSider = ref(false);
 const showSiteList = ref(false);
 const collapsed = ref(false);
 const privateMode = ref(false);
@@ -69,8 +72,26 @@ const switchPrivateMode = () => {
   localStorage.setItem('local:privateMode', JSON.stringify(privateMode.value));
 }
 const oneKeySync = async () => {
+  if (showText.value.length > 0) {
+    message.warning('有其他操作正在进行，请稍后再试！');
+    return;
+  }
   message.loading({content: () => showText.value, duration: 0, type: 'warning'});
   await autoSyncCookie()
+  await sleep(3000)
+  message.destroy()
+  showText.value = ''
+}
+const oneKeyImportCookies = async () => {
+  if (showText.value.length > 0) {
+    message.warning('有其他操作正在进行，请稍后再试！');
+    return;
+  }
+  message.loading({content: () => showText.value, duration: 0, type: 'warning'});
+  await autoImportCookie()
+  await sleep(3000)
+  message.destroy()
+  showText.value = ''
 }
 onMounted(async () => {
   console.log("打开弹出页面！:")
@@ -93,7 +114,7 @@ const onCollapse = (collapse: boolean) => {
   collapsed.value = collapse;
 }
 const checkScreenSize = () => {
-  showSider.value = window.innerWidth >= 768;
+  collapsed.value = window.innerWidth < 768;
 }
 const syncSingleSite = async (site: MySite) => {
   if (showText.value.length > 0) {
@@ -143,12 +164,23 @@ const signSite = async (site: MySite) => {
   message.destroy()
   showText.value = ''
 }
+const writeSiteCookies = async (site: MySite) => {
+  if (showText.value.length > 0) {
+    message.warning('有其他操作正在进行，请稍后再试！');
+    return;
+  }
+  showText.value = `正在写入 ${site.nickname || site.site} 站点Cookie...`
+  message.loading({content: () => showText.value, duration: 0, type: 'warning'});
+  await writeSingleSiteCookies(site)
+  await sleep(3000)
+  message.destroy()
+  showText.value = ''
+}
 </script>
 
 <template>
   <a-layout>
     <a-layout-sider
-        v-show="showSider"
         :collapsed="collapsed"
         :collapsible="true"
         :zeroWidthTriggerStyle="{
@@ -175,13 +207,18 @@ const signSite = async (site: MySite) => {
       <a-space direction="vertical">
         <a-space class="alert-content" direction="vertical">
           <a-alert
-              v-if="syncMode"
+              v-if="syncMode || importCookieMode"
               :description="showText"
               type="info"
           />
           <a-alert
               v-if="syncMode"
-              :description="`正在同步站点 Cookie ${count}/${Object.values(mySiteList!).filter((site) => site.available && site.nickname.includes(searchKey)).length}`"
+              :description="`正在向收割机同步站点 Cookie ${count}/${Object.values(mySiteList!).filter((site) => site.available && site.nickname.includes(searchKey)).length}`"
+              type="success"
+          />
+          <a-alert
+              v-if="importCookieMode"
+              :description="`正在向浏览器导入站点 Cookie ${count}/${Object.values(mySiteList!).filter((site) => site.available && site.nickname.includes(searchKey)).length}`"
               type="success"
           />
         </a-space>
@@ -256,39 +293,95 @@ const signSite = async (site: MySite) => {
             </a-button>
             <a-popover title="缓存服务器数据">
               <template #content>
-                <p>从收割机服务器拉取站点配置列表，已有站点列表，下载器列表，缓存到本地，减少交互，提高效率</p>
+                <div style="max-width: 200px;">
+                  从收割机服务器拉取站点配置列表，已有站点列表，下载器列表，缓存到本地，减少交互，提高效率
+                </div>
               </template>
-              <a-button
-                  block
-                  type="primary"
-                  @click="cacheServerData"
+              <a-popconfirm
+                  cancel-text="取消"
+                  ok-text="确定"
+                  placement="bottomRight"
+                  title="确定要强制更新本地缓存？"
+                  @confirm="cacheServerData"
               >
-                更新缓存
-              </a-button>
+                <a-button
+                    block
+                    type="primary"
+                    @click="cacheServerData"
+                >
+                  更新缓存
+                </a-button>
+              </a-popconfirm>
             </a-popover>
-            <a-popover title="一键同步Cookie">
+            <a-popover title="一键导入Cookie">
               <template #content>
-                <p>一键同步已添加站点的 Cookie 信息，此功能仅同步 Cookie 和 UserAgent</p>
+                <div style="max-width: 200px;">
+                  一键同步已添加站点的 Cookie 信息，此功能仅同步 Cookie 和 UserAgent
+                </div>
               </template>
-              <a-button
-                  block
-                  type="primary"
-                  @click="oneKeySync"
+              <a-popconfirm
+                  cancel-text="取消"
+                  ok-text="确定"
+                  placement="bottomRight"
+                  title="确定将同步PT站点Cookie到收割机吗？"
+                  @confirm="oneKeySync"
               >
-                一键同步
-              </a-button>
+                <a-button block type="primary">
+                  一键同步
+                </a-button>
+              </a-popconfirm>
             </a-popover>
-            <a-popover title="导入模式开关">
+            <a-popover title="一键导入Cookie">
               <template #content>
-                <p>
-                  打开导入模式时，会显示一键添加按钮，此时可以一键导入未添加的站点
-                </p>
-                <p>
-                  站点添加成功后会关掉当前页面，未关掉的站点就是添加失败的，可以手动点击同步数据按钮
-                </p>
-                <p>
-                  如果你发现你的个人中心或者控制面板打开后页面自动关闭，请关闭导入模式！
-                </p>
+                <div style="max-width: 200px;">
+                  <p>
+                    将收割机保存的站点 Cookie 写入到浏览器，可以用于新电脑或者新安装浏览器。
+                  </p>
+                  <p>
+                    恭喜你，再也不需要所有的站点都重新登录一遍啦！
+                  </p>
+                </div>
+              </template>
+              <a-popconfirm
+                  cancel-text="取消"
+                  ok-text="确定"
+                  placement="bottomRight"
+                  title="确定将写入PT站点Cookie到浏览器吗？"
+                  @confirm="oneKeyImportCookies"
+              >
+                <a-button block type="primary">
+                  一键写入
+                </a-button>
+              </a-popconfirm>
+            </a-popover>
+            <a-popover
+                v-if="importMode"
+                title="一键添加站点">
+              <template #content>
+                <div style="max-width: 200px;">
+                  筛选未添加的站点列表，同时在本地的 Cookie 信息中筛选访问过的站点，打开站点并抓取
+                  Cookie、UserAgent、用户名、UID、Passkey、邮箱等信息，同步到收割机服务器，站点添加成功后会关掉当前页面，未关掉的站点就是添加失败的，请手动处理
+                </div>
+              </template>
+              <a-popconfirm
+                  cancel-text="取消"
+                  ok-text="确定"
+                  placement="bottomRight"
+                  title="确定执行批量添加站点功能吗？"
+                  @confirm="autoAddSites"
+              >
+                <a-button block ghost type="primary">
+                  一键添加
+                </a-button>
+              </a-popconfirm>
+            </a-popover>
+            <a-popover title="批量导入模式开关">
+              <template #content>
+                <div style="max-width: 200px;">
+                  <p>打开导入模式时，会显示一键添加按钮，此时可以一键导入未添加的站点,</p>
+                  <p>站点添加成功后会关掉当前页面，未关掉的站点就是添加失败的，可以手动点击同步数据按钮,</p>
+                  <p>如果你发现你的个人中心或者控制面板打开后页面自动关闭，请关闭导入模式！</p>
+                </div>
               </template>
               <a-button
                   v-if="importMode"
@@ -298,7 +391,7 @@ const signSite = async (site: MySite) => {
                   type="primary"
                   @click="switchImportMode"
               >
-                <span>导入模式:开</span>
+                <span>批量添加:开启</span>
               </a-button>
               <a-button
                   v-else
@@ -306,39 +399,29 @@ const signSite = async (site: MySite) => {
                   type="primary"
                   @click="switchImportMode"
               >
-                <span>导入模式:关</span>
+                <span>批量添加:关闭</span>
               </a-button>
             </a-popover>
-            <a-popover title="一键添加站点">
-              <template #content>
-                <p>筛选未添加的站点列表，同时在本地的 Cookie 信息中筛选访问过的站点，抓取 Cookie 和
-                  UserAgent，同步到收割机服务器，然后批量打开</p>
-              </template>
-              <a-button
-                  v-if="importMode"
-                  block
-                  ghost
-                  type="primary"
-                  @click="autoAddSites"
-              >
-                一键添加
-              </a-button>
-            </a-popover>
+
             <a-popover title="清理单站收割机缓存">
               <template #content>
-                <p>
+                <p style="max-width: 200px;">
                   清理单站收割机缓存会挨个打开站点所有 url，并从本地存储删除收割机站点 ID 和站点配置文件缓存
                 </p>
               </template>
-              <a-button
-                  block
-                  danger
-                  ghost
-                  type="primary"
-                  @click="autoClearSitesHarvestInfo"
+              <a-popconfirm
+                  cancel-text="取消"
+                  ok-text="确定"
+                  title="确定将清理 PT 站点中收割机相关缓存吗？？"
+                  @confirm="autoClearSitesHarvestInfo"
               >
-                <span>清理缓存:慎用</span>
-              </a-button>
+                <a-button block
+                          danger
+                          ghost
+                          type="primary">
+                  <span>清理缓存:慎用</span>
+                </a-button>
+              </a-popconfirm>
             </a-popover>
           </a-space>
         </a-space>
@@ -404,6 +487,10 @@ const signSite = async (site: MySite) => {
                   <a-tooltip>
                     <template #title>同步 Cookie</template>
                     <sync-outlined key="sync" @click="syncSingleSite(mySite)"/>
+                  </a-tooltip>
+                  <a-tooltip>
+                    <template #title>导入 Cookie</template>
+                    <download-outlined key="sync" @click="writeSiteCookies(mySite)"/>
                   </a-tooltip>
 
                   <a-tooltip>

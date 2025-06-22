@@ -13,6 +13,7 @@ export const useSettingStore = defineStore("setting", () => {
     const webSiteList = ref<{ [key: string]: WebSite }>()
     const mySiteList = ref<{ [key: string]: MySite }>()
     const importMode = ref<boolean>(false)
+    const importCookieMode = ref<boolean>(false)
     const syncMode = ref<boolean>(false)
     const isOpenInPopupFlag = ref<boolean>(false)
     const count = ref(0)
@@ -221,7 +222,6 @@ export const useSettingStore = defineStore("setting", () => {
             acc[site.id] = mySite
             return acc;
         }, {})
-        console.log('站点列表测试标记', data)
         return CommonResponse.success(data)
     }
     /**
@@ -284,7 +284,7 @@ export const useSettingStore = defineStore("setting", () => {
      */
     const autoSyncCookie = async (): Promise<void> => {
         console.log('开始同步站点 Cookie', mySiteList.value)
-        showText.value = '开始同步站点 Cookie';
+        showText.value = '开始同步站点 Cookie 到收割机';
         syncMode.value = true
         await loadFromCacheIfAvailable()
         const siteList = Object.values(mySiteList.value!).filter((site) => site.available);
@@ -293,13 +293,36 @@ export const useSettingStore = defineStore("setting", () => {
             count.value += 1
             await syncSingleSiteCookie(site)
         }
-        syncMode.value = false
-        count.value = 0
+
         message.success(`站点 Cookie 同步完成，共同步${count.value} / ${siteList.length}`);
         await cacheServerData()
         setTimeout(() => {
             message.destroy()
         }, 3000)
+        syncMode.value = false
+        count.value = 0
+    }
+    /**
+     * 自动导入站点的 Cookie
+     */
+    const autoImportCookie = async (): Promise<void> => {
+        console.log('开始导入站点 Cookie', mySiteList.value)
+        showText.value = '开始导入站点 Cookie 到浏览器';
+        importCookieMode.value = true
+        await loadFromCacheIfAvailable()
+        const siteList = Object.values(mySiteList.value!).filter((site) => site.available);
+        console.log('需要导入的站点：', siteList);
+        for (const site of siteList) {
+            count.value += 1
+            await writeSingleSiteCookies(site)
+        }
+
+        message.success(`导入 Cookie 到浏览器完成，共导入${count.value} / ${siteList.length}`);
+        setTimeout(() => {
+            message.destroy()
+        }, 3000)
+        importCookieMode.value = false
+        count.value = 0
     }
 
     /**
@@ -402,6 +425,19 @@ export const useSettingStore = defineStore("setting", () => {
             payload: {
                 setting: toRaw(setting.value),
                 mySiteId: site.id,
+            }
+        });
+        showText.value = res.msg;
+    }
+    /**
+     * 写入单站 Cookie 到浏览器
+     */
+    const writeSingleSiteCookies = async (site: MySite) => {
+        const res = await browser.runtime.sendMessage({
+            type: 'writeSingleSiteCookies',
+            payload: {
+                setting: toRaw(setting.value),
+                mySite: site,
             }
         });
         showText.value = res.msg;
@@ -766,5 +802,8 @@ export const useSettingStore = defineStore("setting", () => {
         testDownloader,
         testServer,
         webSiteList,
+        importCookieMode,
+        autoImportCookie,
+        writeSingleSiteCookies,
     };
 })
