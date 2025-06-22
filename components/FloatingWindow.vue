@@ -759,11 +759,13 @@ async function get_torrent_detail() {
  * 获取下载器分类列表
  */
 async function getDownloaderCategoryList(downloaderId: number) {
-  categories.value.length = 0;
+
   if (!downloaderId) {
     return;
   }
-
+  if (categories.value) {
+    categories.value.length = 0;
+  }
   try {
     // 先测试连接
     const response: CommonResponse<any> = await testDownloader(downloaderId);
@@ -823,19 +825,18 @@ const push_torrent = async (downloaderId: number, category: string, save_path: s
   try {
     const res = await pushTorrent(
         downloaderId,
-        mySiteId.value,
+        toRaw(mySiteId.value),
         category,
-        siteInfo.value.name,
-        cookie.value,
+        toRaw(siteInfo.value.name),
+        toRaw(cookie.value),
         save_path,
-        url_list.value,
+        toRaw(url_list.value),
     );
     console.log(res);
 
     if (!res || res.code !== 0) {
       message.error(res.msg);
     } else {
-      categories.value = res.data;
       message.success(`种子已推送，请检查下载器！${res.msg}`);
     }
   } catch (error) {
