@@ -467,7 +467,7 @@ const writeSiteCookies = async (site: MySite) => {
                   </a-badge>
                 </template>
                 <template #title>
-                  <a-avatar v-if="!privateMode" :size="20" :src="`${mySite.mirror}/${webSiteList![mySite.site].logo}`"/>
+                  <a-avatar v-if="privateMode" :size="20" :src="`${mySite.mirror}/${webSiteList![mySite.site].logo}`"/>
                   <a-button :href="mySite.mirror" target="_blank" type="link">
                     <span
                         v-text="`${mySite.nickname[0].toUpperCase()}${privateMode ? '*' :mySite.nickname.slice(1)}`"></span>
