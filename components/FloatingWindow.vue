@@ -209,9 +209,7 @@ async function getUid() {
   }
 
   let user_id: string | null;
-  if (!href.includes('/')) {
-    user_id = href.trim()
-  } else if (href.includes('=')) {
+  if (href.includes('=')) {
     // URL 模式
     const fullUrl = href.startsWith('http') ? href : `${location.origin}/${href}`;
     const url = new URL(fullUrl);
@@ -221,6 +219,8 @@ async function getUid() {
         url.searchParams.get('user_id') ||
         url.searchParams.get('uuid') ||
         url.searchParams.get('u');
+  } else if (!href.includes('/')) {
+    user_id = href.trim()
   } else {
     // path 模式
     user_id = href.split('/').pop()?.trim() || null;
