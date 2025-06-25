@@ -6,6 +6,7 @@ import {message} from "ant-design-vue";
 import {
   ArrowDownOutlined,
   ArrowUpOutlined,
+  BarChartOutlined,
   BellOutlined,
   ClockCircleOutlined,
   CloudDownloadOutlined,
@@ -14,15 +15,18 @@ import {
   DownloadOutlined,
   EditOutlined,
   EllipsisOutlined,
+  FieldTimeOutlined,
   FormatPainterOutlined,
   MailOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   ShareAltOutlined,
   SyncOutlined,
+  UserAddOutlined,
 } from '@ant-design/icons-vue';
 import prettyBytes from "pretty-bytes";
 import {MySite} from "@/types";
+import numberFormat from "@/utils/numberFormat";
 
 const settingStore = useSettingStore()
 const {
@@ -552,7 +556,31 @@ const writeSiteCookies = async (site: MySite) => {
                           prettyBytes(mySite.status?.seed_volume || 0)
                         }}
                       </a-col>
+                      <a-col :span="8">
+                        <bar-chart-outlined/>
+                        {{
+                          // @ts-ignore
+                          numberFormat(mySite.status?.my_bonus || 0)
+                        }}[{{
+                          // @ts-ignore
+                          numberFormat(mySite.status?.my_score || 0)
+                        }}]
+                      </a-col>
 
+                      <a-col :span="8">
+                        <field-time-outlined/>
+                        {{
+                          // @ts-ignore
+                          numberFormat(mySite.status?.bonus_hour || 0)
+                        }}
+                      </a-col>
+                      <a-col :span="8">
+                        <user-add-outlined/>
+                        {{
+                          // @ts-ignore
+                          mySite.status?.invitation || 0
+                        }}
+                      </a-col>
                     </a-row>
 
                     <span class="site-data">
