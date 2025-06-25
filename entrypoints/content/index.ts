@@ -230,6 +230,8 @@ export default defineContentScript({
         'https://pt.tey.cc/*',
         'https://seedpool.org/*',
         'https://sextorrent.eu/*',
+        // 2025-06-25
+        'https://pt.lsfxxbj.top/*',
     ],
     // 2. Set cssInjectionMode
     cssInjectionMode: 'ui',
