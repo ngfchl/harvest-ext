@@ -228,6 +228,9 @@ async function getUid() {
   if (!user_id) {
     return CommonResponse.error(-1, '非本人主页，取消同步！')
   }
+  if (!/^[a-zA-Z0-9-]+$/.test(user_id)) {
+    return CommonResponse.error(-1, '站点 Uid 获取失败，请上报给开发者！')
+  }
   myUid.value = user_id
   return CommonResponse.success(user_id)
 }
