@@ -2,7 +2,7 @@
 import {computed, onMounted} from 'vue';
 import {useSettingStore} from "@/hooks/use-setting";
 import {storeToRefs} from "pinia";
-import {message} from "ant-design-vue";
+import {MenuProps, message} from "ant-design-vue";
 import {
   AreaChartOutlined,
   ArrowDownOutlined,
@@ -22,6 +22,9 @@ import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   ShareAltOutlined,
+  SortAscendingOutlined,
+  SortDescendingOutlined,
+  SwapOutlined,
   SyncOutlined,
   UserAddOutlined,
 } from '@ant-design/icons-vue';
@@ -62,11 +65,23 @@ const {
 const showSiteList = ref(false);
 const collapsed = ref(false);
 const privateMode = ref(false);
+const reverseMode = ref(false);
 const searchKey = ref('');
 const sortKey = ref('mail');
 const showMySiteList = ref<MySite[]>([]);
 
-
+const sortKeyList = {
+  mail: '消息通知',
+  downloaded: '下载量',
+  uploaded: '上传量',
+  my_bonus: '魔力值',
+  my_score: '做种积分',
+  leech: '正在下载',
+  seed: '正在做种',
+  invitation: '邀请数量',
+  seed_volume: '做种体积',
+  updated_at: '更新时间',
+}
 const onSearch = (value: string | null = '') => {
   console.log(value);
   showMySiteList.value = Object.values(mySiteList.value!).filter(
@@ -76,45 +91,61 @@ const onSearch = (value: string | null = '') => {
           site.mirror?.toLowerCase().includes(searchKey.value.trim().toLowerCase())
       )
   ).sort((a, b) => b.mail + b.notice - (a.mail + a.notice))
-  switch (sortKey.value) {
+
+}
+const handleReverse = () => {
+  reverseMode.value = !reverseMode.value;
+  doSort(sortKey.value);
+}
+const doSort = (value: string = '') => {
+  switch (value) {
     case 'mail':
     case 'notice':
-      showMySiteList.value.toSorted((a, b) => b.mail + b.notice - (a.mail + a.notice))
+      showMySiteList.value = showMySiteList.value.sort((a, b) => b.mail + b.notice - (a.mail + a.notice))
       break;
     case 'downloaded':
-      showMySiteList.value.toSorted((a, b) => b.status?.downloaded - a.status?.downloaded)
+      showMySiteList.value = showMySiteList.value.sort((a, b) => b.status?.downloaded - a.status?.downloaded)
       break;
     case 'uploaded':
-      showMySiteList.value.toSorted((a, b) => b.status?.uploaded - a.status?.uploaded)
+      showMySiteList.value = showMySiteList.value.sort((a, b) => b.status?.uploaded - a.status?.uploaded)
       break;
     case 'my_bonus':
-      showMySiteList.value.toSorted((a, b) => b.status?.my_bonus - a.status?.my_bonus)
+      showMySiteList.value = showMySiteList.value.sort((a, b) => b.status?.my_bonus - a.status?.my_bonus)
       break;
     case 'my_score':
-      showMySiteList.value.toSorted((a, b) => b.status?.my_score - a.status?.my_score)
+      showMySiteList.value = showMySiteList.value.sort((a, b) => b.status?.my_score - a.status?.my_score)
       break;
     case 'seed':
-      showMySiteList.value.toSorted((a, b) => b.status?.seed - a.status?.seed)
+      showMySiteList.value = showMySiteList.value.sort((a, b) => b.status?.seed - a.status?.seed)
       break;
     case 'leech':
-      showMySiteList.value.toSorted((a, b) => b.status?.leech - a.status?.leech)
+      showMySiteList.value = showMySiteList.value.sort((a, b) => b.status?.leech - a.status?.leech)
       break;
     case 'invitation':
-      showMySiteList.value.toSorted((a, b) => b.status?.invitation - a.status?.invitation)
+      showMySiteList.value = showMySiteList.value.sort((a, b) => b.status?.invitation - a.status?.invitation)
       break;
     case 'seed_volume':
-      showMySiteList.value.toSorted((a, b) => b.status?.seed_volume - a.status?.seed_volume)
+      showMySiteList.value = showMySiteList.value.sort((a, b) => b.status?.seed_volume - a.status?.seed_volume)
       break;
     case 'updated_at':
-      showMySiteList.value.toSorted((a, b) => b.status?.updated_at - a.status?.updated_at)
+      showMySiteList.value = showMySiteList.value.sort((a, b) => b.status?.updated_at - a.status?.updated_at)
       break;
     case 'bonus_hour':
-      showMySiteList.value.toSorted((a, b) => b.status?.bonus_hour - a.status?.bonus_hour)
+      showMySiteList.value = showMySiteList.value.sort((a, b) => b.status?.bonus_hour - a.status?.bonus_hour)
       break;
     case 'ratio':
-      showMySiteList.value.toSorted((a, b) => b.status?.ratio - a.status?.ratio)
+      showMySiteList.value = showMySiteList.value.sort((a, b) => b.status?.ratio - a.status?.ratio)
       break;
   }
+  if (reverseMode.value) {
+    showMySiteList.value = [...(showMySiteList.value || [])].reverse()
+  }
+}
+const handleSortList: MenuProps['onClick'] = key => {
+  console.log(key)
+  // @ts-ignore
+  sortKey.value = key.key;
+  doSort(sortKey.value)
 }
 // 响应式表单最大宽度
 const formMaxWidth = computed(() => {
@@ -493,6 +524,25 @@ const writeSiteCookies = async (site: MySite) => {
         <a-row justify="end" type="flex">
           <a-col></a-col>
           <a-col style="display: flex;align-items: center;justify-items: end">
+            <a-button ghost shape="circle" type="text" @click="handleReverse">
+              <template #icon>
+                <sort-descending-outlined v-if="reverseMode" style="color: floralwhite;"/>
+                <sort-ascending-outlined v-else style="color: floralwhite;"/>
+              </template>
+            </a-button>
+
+            <a-dropdown>
+              <template #overlay>
+                <a-menu @click="handleSortList">
+                  <a-menu-item v-for="(key,value) in sortKeyList" :key="value" style="font-size: 12px;">{{ key }}
+                  </a-menu-item>
+                </a-menu>
+              </template>
+              <a-button ghost type="text">
+                <swap-outlined style="color: floralwhite;"/>
+                <span style="color: floralwhite;font-size: 12px;">{{ sortKeyList[sortKey] }}</span>
+              </a-button>
+            </a-dropdown>
             <a-input-search
                 v-model:value="searchKey" :bordered="false"
                 :loading="searchKey.length > 0"
