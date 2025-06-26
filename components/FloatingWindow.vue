@@ -310,8 +310,8 @@ async function init_button() {
   console.log('开始初始化按钮，当前页面地址：', location.href)
   let url = new URL(location.href)
   let configUserDetailPage = `/${siteInfo.value.page_user.replace('{}', myUid.value)}`;
-  user_detail_page.value = location.href.endsWith(`/${siteInfo.value.page_user.replace('{}', myUid.value)}`)
-      || (`/${siteInfo.value.page_user}`.startsWith(location.pathname) && url.searchParams.size == 0 && !location.href.includes(myUid.value))
+  user_detail_page.value = location.pathname != '/' && (location.href.endsWith(`/${siteInfo.value.page_user.replace('{}', myUid.value)}`)
+      || (`/${siteInfo.value.page_user}`.startsWith(location.pathname) && url.searchParams.size == 0 && !location.href.includes(myUid.value)))
   console.log('当前为个人信息页检测', location.href, "====>", configUserDetailPage, user_detail_page.value)
   if (user_detail_page.value) {
     console.log('当前为个人信息页')
@@ -327,8 +327,8 @@ async function init_button() {
       location.href.startsWith(siteInfo.value.page_control_panel),
       (location.pathname.search(/usercp.php/) > 0 && !location.href.includes('?'))
   )
-  user_detail_page.value = location.href.startsWith(siteInfo.value.page_control_panel) ||
-      (location.pathname.search(/usercp.php/) > 0 && !location.href.includes('?'))
+  user_detail_page.value = location.pathname != '/' && (location.href.startsWith(siteInfo.value.page_control_panel) ||
+      (location.pathname.search(/usercp.php/) > 0 && !location.href.includes('?')))
   if (user_detail_page.value) {
     console.log('当前为控制面板页')
     await nextTick(async () => {
