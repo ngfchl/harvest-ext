@@ -17,6 +17,7 @@ import {
   EditOutlined,
   EllipsisOutlined,
   FieldTimeOutlined,
+  FilterOutlined,
   FormatPainterOutlined,
   MailOutlined,
   MenuFoldOutlined,
@@ -68,6 +69,7 @@ const privateMode = ref(false);
 const reverseMode = ref(false);
 const searchKey = ref('');
 const sortKey = ref('mail');
+const filterKey = ref('');
 const showMySiteList = ref<MySite[]>([]);
 
 const sortKeyList = {
@@ -82,20 +84,82 @@ const sortKeyList = {
   seed_volume: '做种体积',
   updated_at: '更新时间',
 }
-const onSearch = (value: string | null = '') => {
-  console.log(value);
+
+const filterKeyList = {
+  mail: '消息通知',
+  downloaded: '无下载量',
+  uploaded: '无上传量',
+  my_bonus: '无魔力值',
+  my_score: '无做种积分',
+  leech: '正在下载',
+  seed: '无做种数',
+  invitation: '有邀请',
+  seed_volume: '无做种量',
+  bonus_hour: '时魔异常',
+  ratio: '分享率异常',
+}
+const doFilter = (value: string = '') => {
+  switch (value) {
+    case 'mail':
+    case 'notice':
+      showMySiteList.value = showMySiteList.value.filter(site => (site.mail + site.notice) > 0)
+      break;
+    case 'downloaded':
+      // @ts-ignore
+      showMySiteList.value = showMySiteList.value.filter(site => (site.status?.downloaded || 0) <= 0)
+      break;
+    case 'uploaded':
+      // @ts-ignore
+      showMySiteList.value = showMySiteList.value.filter(site => (site.status?.uploaded || 0) <= 0)
+      break;
+    case 'my_bonus':
+      // @ts-ignore
+      showMySiteList.value = showMySiteList.value.filter(site => (site.status?.my_bonus || 0) <= 0)
+      break;
+    case 'my_score':
+      // @ts-ignore
+      showMySiteList.value = showMySiteList.value.filter(site => (site.status?.my_score || 0) <= 0)
+      break;
+    case 'seed':
+      // @ts-ignore
+      showMySiteList.value = showMySiteList.value.filter(site => (site.status?.seed || 0) <= 0)
+      break;
+    case 'leech':
+      // @ts-ignore
+      showMySiteList.value = showMySiteList.value.filter(site => (site.status?.leech || 0) > 0)
+      break;
+    case 'invitation':
+      // @ts-ignore
+      showMySiteList.value = showMySiteList.value.filter(site => (site.status?.invitation || 0) > 0)
+      break;
+    case 'seed_volume':
+      // @ts-ignore
+      showMySiteList.value = showMySiteList.value.filter(site => (site.status?.seed_volume || 0) > 0)
+      break;
+    case 'bonus_hour':
+      // @ts-ignore
+      showMySiteList.value = showMySiteList.value.filter(site => (site.status?.bonus_hour || 0) <= 0)
+      break;
+    case 'ratio':
+      // @ts-ignore
+      showMySiteList.value = showMySiteList.value.filter(site => (site.status?.ratio || 0) < 1)
+      break;
+  }
+}
+const onSearch = () => {
   showMySiteList.value = Object.values(mySiteList.value!).filter(
-      (site) => site.available && (
-          site.nickname.toLowerCase().includes(searchKey.value.trim().toLowerCase()) ||
+      (site) => site.nickname.toLowerCase().includes(searchKey.value.trim().toLowerCase()) ||
           site.site.toLowerCase().includes(searchKey.value.trim().toLowerCase()) ||
           site.mirror?.toLowerCase().includes(searchKey.value.trim().toLowerCase())
-      )
-  ).sort((a, b) => b.mail + b.notice - (a.mail + a.notice))
-
+  )
+  if (filterKey.value.length > 0) {
+    doFilter(filterKey.value)
+  }
+  doSort(sortKey.value)
 }
 const handleReverse = () => {
   reverseMode.value = !reverseMode.value;
-  doSort(sortKey.value);
+  onSearch()
 }
 const doSort = (value: string = '') => {
   switch (value) {
@@ -145,7 +209,13 @@ const handleSortList: MenuProps['onClick'] = key => {
   console.log(key)
   // @ts-ignore
   sortKey.value = key.key;
-  doSort(sortKey.value)
+  onSearch()
+}
+const handleFilterList: MenuProps['onClick'] = key => {
+  console.log(key)
+  // @ts-ignore
+  filterKey.value = key.key;
+  onSearch()
 }
 // 响应式表单最大宽度
 const formMaxWidth = computed(() => {
@@ -238,9 +308,11 @@ const refreshSite = async (site: MySite) => {
       top: '40px',
     },
   });
-  await refreshSingleSite(site)
-  await cacheServerData()
-  await sleep(3000)
+  const res = await refreshSingleSite(site)
+  if (res.succeed) {
+    await cacheServerData()
+  }
+  await sleep(2000)
   message.destroy()
   showText.value = ''
 }
@@ -268,6 +340,22 @@ const writeSiteCookies = async (site: MySite) => {
   message.destroy()
   showText.value = ''
 }
+const calcBadge = (mySite: MySite) => {
+  if (!mySite.available) {
+    return 'red'
+  }
+  if (mySite.status != null) {
+    // @ts-ignore
+    const past = new Date(mySite.status?.updated_at!).getTime();
+    const now = Date.now();
+    const diffMs = now - past;
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    if (diffHours > 10) {
+      return 'Coral'
+    }
+  }
+  return 'green'
+}
 </script>
 
 <template>
@@ -275,13 +363,13 @@ const writeSiteCookies = async (site: MySite) => {
     <a-layout-sider
         :collapsed="collapsed"
         :collapsible="true"
+        :width="canSave ? 220 : '100%'"
         :zeroWidthTriggerStyle="{
           top: 0,
           backgroundColor: 'transparent !important',
         }"
         collapsedWidth="0"
-        style="background: #FFF;text-align: center;"
-        width="220" @collapse="onCollapse">
+        style="background: #FFF;text-align: center;" @collapse="onCollapse">
       <template #trigger>
         <menu-unfold-outlined v-if="collapsed"/>
         <menu-fold-outlined v-else/>
@@ -519,12 +607,12 @@ const writeSiteCookies = async (site: MySite) => {
         </a-space>
       </a-space>
     </a-layout-sider>
-    <a-layout>
+    <a-layout v-if="canSave">
       <a-layout-header class="custom-header" style=" justify-content: end;">
         <a-row justify="end" type="flex">
           <a-col></a-col>
           <a-col style="display: flex;align-items: center;justify-items: end">
-            <a-button ghost shape="circle" type="text" @click="handleReverse">
+            <a-button shape="circle" type="text" @click="handleReverse">
               <template #icon>
                 <sort-descending-outlined v-if="reverseMode" style="color: floralwhite;"/>
                 <sort-ascending-outlined v-else style="color: floralwhite;"/>
@@ -538,175 +626,219 @@ const writeSiteCookies = async (site: MySite) => {
                   </a-menu-item>
                 </a-menu>
               </template>
-              <a-button ghost type="text">
+              <a-button type="text">
                 <swap-outlined style="color: floralwhite;"/>
-                <span style="color: floralwhite;font-size: 12px;">{{ sortKeyList[sortKey] }}</span>
+                <span style="color: floralwhite;font-size: 12px;">{{
+                    // @ts-ignore
+                    sortKeyList[sortKey]
+                  }}</span>
               </a-button>
             </a-dropdown>
-            <a-input-search
+            <a-dropdown>
+              <template #overlay>
+                <a-menu @click="handleFilterList">
+                  <a-menu-item v-for="(key,value) in filterKeyList" :key="value" style="font-size: 12px;">{{ key }}
+                  </a-menu-item>
+                </a-menu>
+              </template>
+              <a-button type="text">
+                <filter-outlined style="color: floralwhite;"/>
+                <span style="color: floralwhite;font-size: 12px;">{{
+                    // @ts-ignore
+                    filterKeyList[filterKey] || ''
+                  }}</span>
+              </a-button>
+            </a-dropdown>
+            <a-input
                 v-model:value="searchKey" :bordered="false"
                 :loading="searchKey.length > 0"
                 allow-clear
                 class="custom-input-search"
                 placeholder="站点快速搜索"
                 @change="onSearch"
-            />
+            >
+              <template #addonAfter></template>
+            </a-input>
           </a-col>
         </a-row>
       </a-layout-header>
       <a-layout-content class="content">
-
-        <div v-if="canSave">
-
-          <a-row v-if="showSiteList" :gutter="[12,8]" justify="space-around" type="flex">
+        <div v-if="showSiteList">
+          <a-row :gutter="[12,8]" justify="space-around" style="color: rgba(27, 108, 142, 0.9);" type="flex">
+            <a-col>
+              <span>禁用：{{ Object.values(mySiteList!).filter(item => !item.available).length }}</span>
+            </a-col>
+            <a-col>
+              <span>存活：{{ Object.values(mySiteList!).filter(item => item.available).length }}</span>
+            </a-col>
+            <a-col>
+              <span>总数：{{ Object.values(mySiteList!).length }}</span>
+            </a-col>
+            <a-col>
+              <span>筛选：{{ showMySiteList.length }}</span>
+            </a-col>
+          </a-row>
+          <a-row :gutter="[12,8]" justify="space-around" type="flex">
             <a-col
                 v-for="mySite in showMySiteList"
                 :lg="8" :md="12"
                 :sm="24"
                 :xl="6">
-              <a-card hoverable style="width: 100% !important;min-width: 300px;">
-                <template #extra>
-                  <a-badge v-if="mySite.notice > 0" :count="mySite.notice" :offset="[2,0]">
-                    <bell-outlined style="color: #a6a6a6;margin-left: 6px !important;"/>
-                  </a-badge>
-                  <a-badge v-if="mySite.mail > 0" :count="mySite.mail" :offset="[2,0]">
-                    <mail-outlined style="color: #a6a6a6;margin-left: 6px !important;"/>
-                  </a-badge>
-                  <a-badge v-if="mySite.status?.invitation != undefined && mySite.status?.invitation > 0"
-                           :count="mySite.status?.invitation" :offset="[2,0]">
-                    <user-add-outlined style="color: #a6a6a6;margin-left: 6px !important;"/>
-                  </a-badge>
-                </template>
-                <template #title>
-                  <a-avatar v-if="!privateMode" :size="20" :src="`${mySite.mirror}/${webSiteList![mySite.site].logo}`"/>
-                  <a-button :href="mySite.mirror" target="_blank" type="link">
-                    <a-tooltip>
-                      <template #title>{{ mySite.nickname }}</template>
-                      <span
-                          v-text="`${mySite.nickname[0].toUpperCase()}${privateMode ? '*' :mySite.nickname.slice(1)}`"></span>
-                    </a-tooltip>
-                    <!--                    <span v-else-->
-                    <!--                          v-text="`${mySite.site[0].toUpperCase()}${privateMode ? '*' :mySite.site.slice(1)}`"></span>-->
-                  </a-button>
-                  <span style="font-size: 12px;color: gray;">
+              <a-badge-ribbon :color="calcBadge(mySite)" :text="mySite.available ?'':'站点已禁用'">
+                <a-card hoverable style="width: 100% !important;min-width: 300px;">
+                  <template #extra>
+                    <a-badge v-if="mySite.notice > 0" :count="mySite.notice"
+                             :offset="[2,0]">
+                      <bell-outlined style="color: #a6a6a6;margin-left: 6px !important;"/>
+                    </a-badge>
+                    <a-badge v-if="mySite.mail > 0" :count="mySite.mail" :offset="[2,0]">
+                      <mail-outlined style="color: #a6a6a6;margin-left: 6px !important;"/>
+                    </a-badge>
+
+                    <a-badge v-if="mySite.status?.invitation != undefined &&
+                  // @ts-ignore
+                  mySite.status?.invitation > 0"
+                             :count="mySite.status?.invitation" :number-style="{
+                      backgroundColor: '#52c41a',
+                      color: 'floralwhite',
+                    }"
+                             :offset="[1,1]"
+                    >
+                      <user-add-outlined style="color: #a6a6a6;margin-left: 6px !important;"/>
+                    </a-badge>
+                  </template>
+                  <template #title>
+                    <a-avatar v-if="!privateMode" :size="20"
+                              :src="`${mySite.mirror}/${webSiteList![mySite.site].logo}`"/>
+                    <a-button :href="mySite.mirror" target="_blank" type="link">
+                      <a-tooltip>
+                        <template #title>{{ mySite.nickname }}</template>
+                        <span
+                            v-text="`${mySite.nickname[0].toUpperCase()}${privateMode ? '*' :mySite.nickname.slice(1)}`"></span>
+                      </a-tooltip>
+                      <!--                    <span v-else-->
+                      <!--                          v-text="`${mySite.site[0].toUpperCase()}${privateMode ? '*' :mySite.site.slice(1)}`"></span>-->
+                    </a-button>
+                    <span style="font-size: 12px;color: gray;">
                       {{
-                      // @ts-ignore
-                      `${mySite.status?.my_level.replace(/\s/g, '') || 'User'}`
-                    }}
+                        // @ts-ignore
+                        `${mySite.status?.my_level.replace(/\s/g, '') || 'User'}`
+                      }}
                     </span>
-                </template>
-                <template #actions>
-                  <a-tooltip>
-                    <template #title>刷新站点数据</template>
-                    <format-painter-outlined key="refresh" @click="refreshSite(mySite)"/>
-                  </a-tooltip>
-                  <a-tooltip v-if="mySite.sign_in">
-                    <template #title>签到签到</template>
-                    <edit-outlined key="edit" @click="signSite(mySite)"/>
-                  </a-tooltip>
-                  <a-tooltip>
-                    <template #title>同步 Cookie</template>
-                    <sync-outlined key="sync" @click="syncSingleSite(mySite)"/>
-                  </a-tooltip>
-                  <a-tooltip>
-                    <template #title>导入 Cookie</template>
-                    <download-outlined key="sync" @click="writeSiteCookies(mySite)"/>
-                  </a-tooltip>
+                  </template>
+                  <template #actions>
+                    <a-tooltip>
+                      <template #title>刷新站点数据</template>
+                      <format-painter-outlined key="refresh" @click="refreshSite(mySite)"/>
+                    </a-tooltip>
+                    <a-tooltip v-if="mySite.sign_in">
+                      <template #title>签到签到</template>
+                      <edit-outlined key="edit" @click="signSite(mySite)"/>
+                    </a-tooltip>
+                    <a-tooltip>
+                      <template #title>同步 Cookie</template>
+                      <sync-outlined key="sync" @click="syncSingleSite(mySite)"/>
+                    </a-tooltip>
+                    <a-tooltip>
+                      <template #title>导入 Cookie</template>
+                      <download-outlined key="sync" @click="writeSiteCookies(mySite)"/>
+                    </a-tooltip>
 
-                  <a-tooltip>
-                    <template #title>更多功能，敬请期待</template>
-                    <ellipsis-outlined key="ellipsis"/>
-                  </a-tooltip>
+                    <a-tooltip>
+                      <template #title>更多功能，敬请期待</template>
+                      <ellipsis-outlined key="ellipsis"/>
+                    </a-tooltip>
 
-
-                </template>
-                <a-card-meta>
-                  <template #avatar>
 
                   </template>
-                  <template #description>
-                    <a-row class="site-data">
-                      <a-col :span="10">
-                        <arrow-up-outlined/>
-                        {{ mySite.status?.seed }}
-                      </a-col>
-                      <a-col :span="7">
-                        <arrow-down-outlined/>
-                        {{ mySite.status?.leech }}
-                      </a-col>
-                      <a-col :span="7">
-                        <share-alt-outlined/>
-                        {{
-                          // @ts-ignore
-                          mySite.status?.downloaded ? (mySite.status?.uploaded / mySite.status?.downloaded).toFixed() : 0
-                        }}
-                        [{{ mySite.status?.published || 0 }}]
-                      </a-col>
-                      <a-col :span="10">
-                        <cloud-upload-outlined/>
+                  <a-card-meta>
+                    <template #avatar>
 
-                        {{
-                          // @ts-ignore
-                          prettyBytes(mySite.status?.uploaded || 0)
-                        }}
-                      </a-col>
-                      <a-col :span="7">
-                        <cloud-download-outlined/>
-                        {{
-                          // @ts-ignore
-                          prettyBytes(mySite.status?.downloaded || 0)
-                        }}
-                      </a-col>
-                      <a-col :span="7">
-                        <cloud-sync-outlined/>
-                        {{
-                          // @ts-ignore
-                          prettyBytes(mySite.status?.seed_volume || 0)
-                        }}
-                      </a-col>
-                      <a-col :span="10">
-                        <bar-chart-outlined/>
-                        {{
-                          // @ts-ignore
-                          numberFormat(mySite.status?.my_bonus || 0)
-                        }}
-                      </a-col>
-                      <a-col :span="7">
-                        <area-chart-outlined/>
-                        {{
-                          // @ts-ignore
-                          numberFormat(mySite.status?.my_score || 0)
-                        }}
-                      </a-col>
-                      <a-col :span="7">
-                        <field-time-outlined/>
-                        {{
-                          // @ts-ignore
-                          numberFormat(mySite.status?.bonus_hour || 0)
-                        }}
-                      </a-col>
+                    </template>
+                    <template #description>
+                      <a-row class="site-data">
+                        <a-col :span="10">
+                          <arrow-up-outlined/>
+                          {{ mySite.status?.seed }}
+                        </a-col>
+                        <a-col :span="7">
+                          <arrow-down-outlined/>
+                          {{ mySite.status?.leech }}
+                        </a-col>
+                        <a-col :span="7">
+                          <share-alt-outlined/>
+                          {{
+                            // @ts-ignore
+                            numberFormat(mySite.status?.downloaded ? (mySite.status?.uploaded / mySite.status?.downloaded).toFixed() : 0)
+                          }}
+                          [{{ mySite.status?.published || 0 }}]
+                        </a-col>
+                        <a-col :span="10">
+                          <cloud-upload-outlined/>
 
-                    </a-row>
+                          {{
+                            // @ts-ignore
+                            prettyBytes(mySite.status?.uploaded || 0)
+                          }}
+                        </a-col>
+                        <a-col :span="7">
+                          <cloud-download-outlined/>
+                          {{
+                            // @ts-ignore
+                            prettyBytes(mySite.status?.downloaded || 0)
+                          }}
+                        </a-col>
+                        <a-col :span="7">
+                          <cloud-sync-outlined/>
+                          {{
+                            // @ts-ignore
+                            prettyBytes(mySite.status?.seed_volume || 0)
+                          }}
+                        </a-col>
+                        <a-col :span="10">
+                          <bar-chart-outlined/>
+                          {{
+                            // @ts-ignore
+                            numberFormat(mySite.status?.my_bonus || 0)
+                          }}
+                        </a-col>
+                        <a-col :span="7">
+                          <area-chart-outlined/>
+                          {{
+                            // @ts-ignore
+                            numberFormat(mySite.status?.my_score || 0)
+                          }}
+                        </a-col>
+                        <a-col :span="7">
+                          <field-time-outlined/>
+                          {{
+                            // @ts-ignore
+                            numberFormat(mySite.status?.bonus_hour || 0)
+                          }}
+                        </a-col>
 
-                    <span class="site-data">
+                      </a-row>
+
+                      <span class="site-data">
                     <clock-circle-outlined/>
                     更新时间：{{
-                        // @ts-ignore
-                        mySite.status?.updated_at.slice(0, 19)
-                      }}
+                          // @ts-ignore
+                          mySite.status?.updated_at.slice(0, 19)
+                        }}
                   </span>
-                  </template>
-                </a-card-meta>
-              </a-card>
+                    </template>
+                  </a-card-meta>
+                </a-card>
+              </a-badge-ribbon>
             </a-col>
-          </a-row>
 
-          <a-row v-else justify="space-around" type="flex">
-            <a-col>
-              倒车请注意
-            </a-col>
           </a-row>
         </div>
+        <a-row v-else justify="space-around" type="flex">
+          <a-col>
+            倒车请注意
+          </a-col>
+        </a-row>
       </a-layout-content>
     </a-layout>
   </a-layout>
@@ -761,10 +893,10 @@ const writeSiteCookies = async (site: MySite) => {
 }
 
 ::v-deep(.custom-input-search input) {
-  color: floralwhite;
+  color: floralwhite !important;
 }
 
-::v-deep(.custom-input-search .ant-input-search-button) {
+::v-deep(input.ant-input.ant-input-borderless) {
   background-color: rgba(27, 108, 142, 0.0) !important;
   color: floralwhite !important;
   border: none !important;
