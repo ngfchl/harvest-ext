@@ -425,6 +425,7 @@ export const useSettingStore = defineStore("setting", () => {
             }
         });
         showText.value = res.msg;
+        return res
     }
     /**
      * 写入单站 Cookie 到浏览器
