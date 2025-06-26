@@ -361,7 +361,7 @@ export interface StatusInfo {
     seed: number;
     leech: number;
     invitation: number;
-    publish: number;
+    published: number;
     seed_days: number;
     my_hr: string;
     my_level: string;
