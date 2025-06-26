@@ -4,6 +4,7 @@ import {useSettingStore} from "@/hooks/use-setting";
 import {storeToRefs} from "pinia";
 import {message} from "ant-design-vue";
 import {
+  AreaChartOutlined,
   ArrowDownOutlined,
   ArrowUpOutlined,
   BarChartOutlined,
@@ -62,7 +63,59 @@ const showSiteList = ref(false);
 const collapsed = ref(false);
 const privateMode = ref(false);
 const searchKey = ref('');
+const sortKey = ref('mail');
+const showMySiteList = ref<MySite[]>([]);
 
+
+const onSearch = (value: string | null = '') => {
+  console.log(value);
+  showMySiteList.value = Object.values(mySiteList.value!).filter(
+      (site) => site.available && (
+          site.nickname.toLowerCase().includes(searchKey.value.trim().toLowerCase()) ||
+          site.site.toLowerCase().includes(searchKey.value.trim().toLowerCase()) ||
+          site.mirror?.toLowerCase().includes(searchKey.value.trim().toLowerCase())
+      )
+  ).sort((a, b) => b.mail + b.notice - (a.mail + a.notice))
+  switch (sortKey.value) {
+    case 'mail':
+    case 'notice':
+      showMySiteList.value.toSorted((a, b) => b.mail + b.notice - (a.mail + a.notice))
+      break;
+    case 'downloaded':
+      showMySiteList.value.toSorted((a, b) => b.status?.downloaded - a.status?.downloaded)
+      break;
+    case 'uploaded':
+      showMySiteList.value.toSorted((a, b) => b.status?.uploaded - a.status?.uploaded)
+      break;
+    case 'my_bonus':
+      showMySiteList.value.toSorted((a, b) => b.status?.my_bonus - a.status?.my_bonus)
+      break;
+    case 'my_score':
+      showMySiteList.value.toSorted((a, b) => b.status?.my_score - a.status?.my_score)
+      break;
+    case 'seed':
+      showMySiteList.value.toSorted((a, b) => b.status?.seed - a.status?.seed)
+      break;
+    case 'leech':
+      showMySiteList.value.toSorted((a, b) => b.status?.leech - a.status?.leech)
+      break;
+    case 'invitation':
+      showMySiteList.value.toSorted((a, b) => b.status?.invitation - a.status?.invitation)
+      break;
+    case 'seed_volume':
+      showMySiteList.value.toSorted((a, b) => b.status?.seed_volume - a.status?.seed_volume)
+      break;
+    case 'updated_at':
+      showMySiteList.value.toSorted((a, b) => b.status?.updated_at - a.status?.updated_at)
+      break;
+    case 'bonus_hour':
+      showMySiteList.value.toSorted((a, b) => b.status?.bonus_hour - a.status?.bonus_hour)
+      break;
+    case 'ratio':
+      showMySiteList.value.toSorted((a, b) => b.status?.ratio - a.status?.ratio)
+      break;
+  }
+}
 // 响应式表单最大宽度
 const formMaxWidth = computed(() => {
   return window.innerWidth < 350 ? '90%' : '350px';
@@ -112,6 +165,7 @@ onMounted(async () => {
   window.addEventListener('resize', checkScreenSize);
   showSiteList.value = JSON.parse(localStorage.getItem('switchShowSiteList') || 'true');
   privateMode.value = JSON.parse(localStorage.getItem('privateMode') || 'true');
+  showMySiteList.value = Object.values(mySiteList.value!)
 });
 
 onBeforeUnmount(() => {
@@ -445,6 +499,7 @@ const writeSiteCookies = async (site: MySite) => {
                 allow-clear
                 class="custom-input-search"
                 placeholder="站点快速搜索"
+                @change="onSearch"
             />
           </a-col>
         </a-row>
@@ -455,30 +510,33 @@ const writeSiteCookies = async (site: MySite) => {
 
           <a-row v-if="showSiteList" :gutter="[12,8]" justify="space-around" type="flex">
             <a-col
-                v-for="mySite in Object.values(mySiteList!).filter(
-                    (site) => site.available && (
-                        site.nickname.toLowerCase().includes(searchKey.trim().toLowerCase()) ||
-                        site.site.toLowerCase().includes(searchKey.trim().toLowerCase())  ||
-                        site.mirror?.toLowerCase().includes(searchKey.trim().toLowerCase())
-                        )
-                    ).sort((a,b)=>b.mail + b.notice - (a.mail + a.notice))"
+                v-for="mySite in showMySiteList"
                 :lg="8" :md="12"
                 :sm="24"
                 :xl="6">
               <a-card hoverable style="width: 100% !important;min-width: 300px;">
                 <template #extra>
                   <a-badge v-if="mySite.notice > 0" :count="mySite.notice" :offset="[2,0]">
-                    <bell-outlined style="color: #a6a6a6"/>
+                    <bell-outlined style="color: #a6a6a6;margin-left: 6px !important;"/>
                   </a-badge>
                   <a-badge v-if="mySite.mail > 0" :count="mySite.mail" :offset="[2,0]">
-                    <mail-outlined style="color: #a6a6a6"/>
+                    <mail-outlined style="color: #a6a6a6;margin-left: 6px !important;"/>
+                  </a-badge>
+                  <a-badge v-if="mySite.status?.invitation != undefined && mySite.status?.invitation > 0"
+                           :count="mySite.status?.invitation" :offset="[2,0]">
+                    <user-add-outlined style="color: #a6a6a6;margin-left: 6px !important;"/>
                   </a-badge>
                 </template>
                 <template #title>
                   <a-avatar v-if="!privateMode" :size="20" :src="`${mySite.mirror}/${webSiteList![mySite.site].logo}`"/>
                   <a-button :href="mySite.mirror" target="_blank" type="link">
-                    <span
-                        v-text="`${mySite.nickname[0].toUpperCase()}${privateMode ? '*' :mySite.nickname.slice(1)}`"></span>
+                    <a-tooltip>
+                      <template #title>{{ mySite.nickname }}</template>
+                      <span
+                          v-text="`${mySite.nickname[0].toUpperCase()}${privateMode ? '*' :mySite.nickname.slice(1)}`"></span>
+                    </a-tooltip>
+                    <!--                    <span v-else-->
+                    <!--                          v-text="`${mySite.site[0].toUpperCase()}${privateMode ? '*' :mySite.site.slice(1)}`"></span>-->
                   </a-button>
                   <span style="font-size: 12px;color: gray;">
                       {{
@@ -518,23 +576,23 @@ const writeSiteCookies = async (site: MySite) => {
                   </template>
                   <template #description>
                     <a-row class="site-data">
-                      <a-col :span="8">
+                      <a-col :span="10">
                         <arrow-up-outlined/>
                         {{ mySite.status?.seed }}
                       </a-col>
-                      <a-col :span="8">
+                      <a-col :span="7">
                         <arrow-down-outlined/>
                         {{ mySite.status?.leech }}
                       </a-col>
-                      <a-col :span="8">
+                      <a-col :span="7">
                         <share-alt-outlined/>
                         {{
                           // @ts-ignore
                           mySite.status?.downloaded ? (mySite.status?.uploaded / mySite.status?.downloaded).toFixed() : 0
                         }}
-                        [{{ mySite.status?.publish || 0 }}]
+                        [{{ mySite.status?.published || 0 }}]
                       </a-col>
-                      <a-col :span="8">
+                      <a-col :span="10">
                         <cloud-upload-outlined/>
 
                         {{
@@ -542,45 +600,42 @@ const writeSiteCookies = async (site: MySite) => {
                           prettyBytes(mySite.status?.uploaded || 0)
                         }}
                       </a-col>
-                      <a-col :span="8">
+                      <a-col :span="7">
                         <cloud-download-outlined/>
                         {{
                           // @ts-ignore
                           prettyBytes(mySite.status?.downloaded || 0)
                         }}
                       </a-col>
-                      <a-col :span="8">
+                      <a-col :span="7">
                         <cloud-sync-outlined/>
                         {{
                           // @ts-ignore
                           prettyBytes(mySite.status?.seed_volume || 0)
                         }}
                       </a-col>
-                      <a-col :span="8">
+                      <a-col :span="10">
                         <bar-chart-outlined/>
                         {{
                           // @ts-ignore
                           numberFormat(mySite.status?.my_bonus || 0)
-                        }}[{{
+                        }}
+                      </a-col>
+                      <a-col :span="7">
+                        <area-chart-outlined/>
+                        {{
                           // @ts-ignore
                           numberFormat(mySite.status?.my_score || 0)
-                        }}]
+                        }}
                       </a-col>
-
-                      <a-col :span="8">
+                      <a-col :span="7">
                         <field-time-outlined/>
                         {{
                           // @ts-ignore
                           numberFormat(mySite.status?.bonus_hour || 0)
                         }}
                       </a-col>
-                      <a-col :span="8">
-                        <user-add-outlined/>
-                        {{
-                          // @ts-ignore
-                          mySite.status?.invitation || 0
-                        }}
-                      </a-col>
+
                     </a-row>
 
                     <span class="site-data">
