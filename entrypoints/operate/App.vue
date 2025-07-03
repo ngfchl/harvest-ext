@@ -311,6 +311,7 @@ const refreshSite = async (site: MySite) => {
   const res = await refreshSingleSite(site)
   if (res.succeed) {
     await cacheServerData()
+    onSearch()
   }
   await sleep(2000)
   message.destroy()
