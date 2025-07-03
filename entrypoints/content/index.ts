@@ -232,6 +232,9 @@ export default defineContentScript({
         'https://sextorrent.eu/*',
         // 2025-06-25
         'https://pt.lsfxxbj.top/*',
+        // 2025-07-03
+        'https://pt.novahd.top/*',
+        'https://cangbao.ge/*',
     ],
     // 2. Set cssInjectionMode
     cssInjectionMode: 'ui',
