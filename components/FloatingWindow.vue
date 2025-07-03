@@ -58,7 +58,9 @@ const url_list = ref<string[]>([])
 const modal_title = ref<string>('下载到')
 const singleTorrent = ref<Torrent>()
 const mySiteId = ref<number>(0)
+const topPosition = ref<number>(0)
 const myUid = ref<string>('')
+const hover = ref(false)
 const siteInfo = ref();
 const harvestWrap = ref<HTMLElement | null>(null);
 let isDragging = false;
@@ -73,12 +75,15 @@ const onMouseDown = (e: MouseEvent) => {
   harvestWrap.value.style.cursor = "grabbing";
 };
 
-const onMouseMove = (e: MouseEvent) => {
+const onMouseMove = async (e: MouseEvent) => {
   if (!isDragging || !harvestWrap.value) return;
   let x = e.clientX - offsetX;
   let y = e.clientY - offsetY;
   harvestWrap.value.style.left = `${x}px`;
   harvestWrap.value.style.top = `${y}px`;
+  topPosition.value = y;
+  console.log('topPosition', topPosition.value);
+  await storage.setItem('local:topPosition', JSON.stringify(topPosition.value))
 };
 
 const onMouseUp = () => {
@@ -101,9 +106,11 @@ const onMouseUp = () => {
     harvestWrap.value!.style.left = "0px";
   }
 };
-const loadLocalStorage = () => {
+const loadLocalStorage = async () => {
   mySiteId.value = parseInt(JSON.parse(localStorage.getItem('mySite') ?? '0'));
   siteInfo.value = localStorage.getItem('website');
+  topPosition.value = parseInt(await storage.getItem('local:topPosition') || '240')
+  console.log('topPosition', topPosition.value);
 }
 onMounted(async () => {
   // 处理 message 不显示的 BUG
@@ -113,7 +120,7 @@ onMounted(async () => {
   // 初始化缓存数据
   await initialize();
   // 从本地存储加载站点信息
-  loadLocalStorage();
+  await loadLocalStorage();
   // 如果站点 ID 不存在，使用站点 host 去查找站点配置文件
   console.log('缓存中的当前站点 ID', mySiteId.value)
   if (!mySiteId.value || mySiteId.value == 0) {
@@ -911,7 +918,9 @@ const getModalContainer = (id: string = 'modal-container') => {
 </script>
 
 <template>
-  <div id="harvest-ext" ref="harvestWrap" class="harvest-wrap">
+  <div id="harvest-ext" ref="harvestWrap" :style="{
+    top: `${topPosition}px`,
+  }" class="harvest-wrap" @mouseenter="hover = true" @mouseleave="hover = false">
     <div id="message-container"></div>
     <div id="modal-container"></div>
     <div id="drawer-container"></div>
@@ -925,7 +934,7 @@ const getModalContainer = (id: string = 'modal-container') => {
       />
       <DragOutlined class="move-item" @mousedown="onMouseDown"/>
     </div>
-    <a-space direction="vertical">
+    <a-space v-if="hover" direction="vertical">
       <a-button
           :href="setting.baseUrl" block danger
           size="small" style="width: 110px;"
@@ -1201,5 +1210,7 @@ const getModalContainer = (id: string = 'modal-container') => {
   top: 0;
   left: 0;
   font-size: 20px;
+  font-weight: bold;
+  color: goldenrod;
 }
 </style>
