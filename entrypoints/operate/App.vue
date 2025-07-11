@@ -752,7 +752,7 @@ const calcBadge = (mySite: MySite) => {
                 :sm="24"
                 :xl="6">
               <a-badge-ribbon :color="calcBadge(mySite)" :text="mySite.available ?'':'站点已禁用'">
-                <a-card hoverable style="width: 100% !important;min-width: 300px;">
+                <a-card hoverable size="small" style="width: 100% !important;min-width: 300px;">
                   <template #extra>
                     <a-badge v-if="mySite.notice > 0" :count="mySite.notice"
                              :offset="[2,0]">
