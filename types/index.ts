@@ -337,7 +337,7 @@ export interface MySite {
     /** 公告数量，默认值为0 */
     notice: number;
     /** 签到信息，JSON格式 */
-    sign_info: SignInfoByDate;
+    sign_info: SignInfoByDate | SignInfo | null;
     /** 站点数据，JSON格式 */
     status: StatusByDate | StatusInfo | null;
 }
@@ -374,14 +374,14 @@ export interface StatusInfo {
 /**
  * 签到信息接口（按日期分类）
  */
-interface SignInfoByDate {
+export interface SignInfoByDate {
     [date: string]: SignInfo;
 }
 
 /**
  * 单个日期的签到信息接口
  */
-interface SignInfo {
+export interface SignInfo {
     time?: string; // 部分日期使用time
     updated_at?: string; // 部分日期使用updated_at
     info: string; // 签到详情信息
