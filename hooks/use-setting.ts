@@ -1,4 +1,15 @@
-import {CacheData, CommonResponse, Downloader, MySite, Settings, SiteInfo, StatusInfo, Torrent, WebSite} from "@/types";
+import {
+    CacheData,
+    CommonResponse,
+    Downloader,
+    MySite,
+    Settings,
+    SignInfo,
+    SiteInfo,
+    StatusInfo,
+    Torrent,
+    WebSite
+} from "@/types";
 import {defineStore} from "pinia";
 import {ref, toRaw} from "vue";
 import {message} from "ant-design-vue";
@@ -219,6 +230,13 @@ export const useSettingStore = defineStore("setting", () => {
                 // @ts-ignore
                 mySite.status = <StatusInfo | null>status[latestDate]
             }
+            if (mySite.sign_in) {
+                let today = (new Date()).toISOString().split('T')[0];
+                // @ts-ignore
+                mySite.sign_info = <SignInfo | null>sign_info[today];
+            } else {
+                mySite.sign_info = null;
+            }
             acc[site.id] = mySite
             return acc;
         }, {})
@@ -361,6 +379,46 @@ export const useSettingStore = defineStore("setting", () => {
         if (isOpenInPopupFlag.value) {
             const url = browser.runtime.getURL('/operate.html');
             browser.tabs.create({url});
+        }
+    }
+
+    /**
+     * 批量签到
+     */
+    const autoSignAll = async (mySiteList: MySite[]) => {
+        for (const site of mySiteList) {
+            try {
+                await openSignInTab(site);
+            } catch (e) {
+                console.log(e)
+            } finally {
+                let seconds = getRandomInt(1, 10)
+                await sleep(seconds * 200)
+            }
+        }
+    }
+    /**
+     * 新建签到页面
+     */
+    const openSignInTab = async (mySite: MySite) => {
+        let webSite = webSiteList.value![mySite.site];
+        let url: string = `${mySite.mirror}${webSite.page_sign_in}`.replace('//', '/')
+        browser.tabs.create({url: url, active: false});
+    }
+
+    /**
+     * 批量打开站点
+     */
+    const autoOpenAll = async (mySiteList: MySite[]) => {
+        for (const site of mySiteList) {
+            try {
+                browser.tabs.create({url: site.mirror!, active: false});
+            } catch (e) {
+                console.log(e)
+            } finally {
+                let seconds = getRandomInt(1, 10)
+                await sleep(seconds * 200)
+            }
         }
     }
     /**
@@ -762,6 +820,9 @@ export const useSettingStore = defineStore("setting", () => {
     return {
         autoAddSites,
         autoClearSitesHarvestInfo,
+        autoImportCookie,
+        autoOpenAll,
+        autoSignAll,
         autoSyncCookie,
         cacheServerData,
         canSave,
@@ -776,6 +837,7 @@ export const useSettingStore = defineStore("setting", () => {
         getDownloaders,
         getSetting,
         getSite,
+        importCookieMode,
         importMode,
         initialize,
         isOpenInPopup,
@@ -800,8 +862,6 @@ export const useSettingStore = defineStore("setting", () => {
         testDownloader,
         testServer,
         webSiteList,
-        importCookieMode,
-        autoImportCookie,
         writeSingleSiteCookies,
     };
 })

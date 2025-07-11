@@ -61,6 +61,8 @@ const {
   syncSingleSiteCookie,
   autoClearSitesHarvestInfo,
   writeSingleSiteCookies,
+  autoSignAll,
+  autoOpenAll,
 } = settingStore
 // const mySiteId = ref<number>(0)
 const showSiteList = ref(false);
@@ -87,6 +89,7 @@ const sortKeyList = {
 
 const filterKeyList = {
   mail: '消息通知',
+  signIn: '未签到',
   downloaded: '无下载量',
   uploaded: '无上传量',
   my_bonus: '无魔力值',
@@ -131,6 +134,10 @@ const doFilter = (value: string = '') => {
     case 'invitation':
       // @ts-ignore
       showMySiteList.value = showMySiteList.value.filter(site => (site.status?.invitation || 0) > 0)
+      break;
+    case 'signIn':
+      // @ts-ignore
+      showMySiteList.value = showMySiteList.value.filter(site => site.available && site.sign_in && site.sign_info == null)
       break;
     case 'seed_volume':
       // @ts-ignore
@@ -236,6 +243,31 @@ const oneKeySync = async () => {
   }
   message.loading({content: () => showText.value, duration: 0, type: 'warning'});
   await autoSyncCookie()
+  await sleep(3000)
+  message.destroy()
+  showText.value = ''
+}
+const oneKeySignIn = async () => {
+  if (showText.value.length > 0) {
+    message.warning('有其他操作正在进行，请稍后再试！');
+    return;
+  }
+  showText.value = "正在批量打开未签到站点"
+  message.loading({content: () => showText.value, duration: 0, type: 'warning'});
+  const toSignList = Object.values(mySiteList.value!).filter(site => site.available && site.sign_in && site.sign_info == null)
+  await autoSignAll(toSignList)
+  await sleep(3000)
+  message.destroy()
+  showText.value = ''
+}
+const oneKeyOpenInTab = async () => {
+  if (showText.value.length > 0) {
+    message.warning('有其他操作正在进行，请稍后再试！');
+    return;
+  }
+  showText.value = "正在批量打开站点"
+  message.loading({content: () => showText.value, duration: 0, type: 'warning'});
+  await autoOpenAll(showMySiteList.value)
   await sleep(3000)
   message.destroy()
   showText.value = ''
@@ -443,17 +475,27 @@ const calcBadge = (mySite: MySite) => {
             <a-button v-if="!canSave" block ghost type="primary" @click="testServer">
               登录鉴权
             </a-button>
-            <!--          <a-button-->
-            <!--              v-if="isOpenInPopupFlag"-->
-            <!--              danger-->
-            <!--              ghost-->
-            <!--              type="primary"-->
-            <!--              @click="openPopupInTab"-->
-            <!--          >-->
-            <!--            打开网页-->
-            <!--          </a-button>-->
+
           </a-space>
           <a-space v-if="canSave" direction="vertical">
+            <a-popover title="一键打开站点列表">
+              <template #content>
+                <div style="max-width: 200px;">
+                  一键打开当前站点列表的所有站点，确认后除关闭浏览器或或执行完毕，无法中止，当站点数量较多时，浏览器会卡顿
+                </div>
+              </template>
+              <a-popconfirm
+                  cancel-text="取消"
+                  ok-text="确定"
+                  placement="bottomRight"
+                  title="确定打开当前站点列表的所有站点吗？"
+                  @confirm="oneKeyOpenInTab"
+              >
+                <a-button block type="primary">
+                  一键打开
+                </a-button>
+              </a-popconfirm>
+            </a-popover>
             <a-button
                 block
                 type="primary"
@@ -509,6 +551,24 @@ const calcBadge = (mySite: MySite) => {
               >
                 <a-button block type="primary">
                   一键同步
+                </a-button>
+              </a-popconfirm>
+            </a-popover>
+            <a-popover title="一键打开未签到站点">
+              <template #content>
+                <div style="max-width: 200px;">
+                  一键打开未签到站点
+                </div>
+              </template>
+              <a-popconfirm
+                  cancel-text="取消"
+                  ok-text="确定"
+                  placement="bottomRight"
+                  title="确定批量打开未签到站点吗？"
+                  @confirm="oneKeySignIn"
+              >
+                <a-button block type="primary">
+                  一键签到
                 </a-button>
               </a-popconfirm>
             </a-popover>
