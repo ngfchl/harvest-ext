@@ -510,6 +510,7 @@ export const useSettingStore = defineStore("setting", () => {
             }
         });
         showText.value = res.msg;
+        return res
     }
     /**
      * 更新单站数据

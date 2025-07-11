@@ -9,6 +9,7 @@ import {
   ArrowUpOutlined,
   BarChartOutlined,
   BellOutlined,
+  CheckCircleOutlined,
   ClockCircleOutlined,
   CloudDownloadOutlined,
   CloudSyncOutlined,
@@ -356,7 +357,11 @@ const signSite = async (site: MySite) => {
   }
   showText.value = `正在签到站点 ${site.nickname || site.site}...`
   message.loading({content: () => showText.value, duration: 0, type: 'warning'});
-  await signSingleSite(site)
+  const res = await signSingleSite(site)
+  if (res.succeed) {
+    await cacheServerData()
+    onSearch()
+  }
   await sleep(3000)
   message.destroy()
   showText.value = ''
@@ -398,8 +403,9 @@ const calcBadge = (mySite: MySite) => {
         :collapsible="true"
         :width="canSave ? 220 : '100%'"
         :zeroWidthTriggerStyle="{
-          top: 0,
+          bottom: 0,
           backgroundColor: 'transparent !important',
+          color: '#fde3cf',
         }"
         collapsedWidth="0"
         style="background: #FFF;text-align: center;" @collapse="onCollapse">
@@ -760,7 +766,7 @@ const calcBadge = (mySite: MySite) => {
                   // @ts-ignore
                   mySite.status?.invitation > 0"
                              :count="mySite.status?.invitation" :number-style="{
-                      backgroundColor: '#52c41a',
+                      backgroundColor: '#1a5ec4',
                       color: 'floralwhite',
                     }"
                              :offset="[1,1]"
@@ -793,8 +799,19 @@ const calcBadge = (mySite: MySite) => {
                       <format-painter-outlined key="refresh" @click="refreshSite(mySite)"/>
                     </a-tooltip>
                     <a-tooltip v-if="mySite.sign_in">
-                      <template #title>签到签到</template>
-                      <edit-outlined key="edit" @click="signSite(mySite)"/>
+                      <template v-if="mySite.sign_info == null" #title>签到签到</template>
+                      <template v-else #title>
+                        <div style="font-size: 11px;">
+                          {{ mySite.sign_info?.info }}
+                          <br/>
+                          签到时间：{{
+                            // @ts-ignore
+                            mySite.sign_info?.updated_at?.substring(0, 19)
+                          }}
+                        </div>
+                      </template>
+                      <edit-outlined v-if="mySite.sign_info == null" key="edit" @click="signSite(mySite)"/>
+                      <check-circle-outlined v-else key="ok" style="color: #7cb305"/>
                     </a-tooltip>
                     <a-tooltip>
                       <template #title>同步 Cookie</template>
@@ -806,11 +823,9 @@ const calcBadge = (mySite: MySite) => {
                     </a-tooltip>
 
                     <a-tooltip>
-                      <template #title>更多功能，敬请期待</template>
+                      <template #title>更多功能，敬请期待 {{ mySite.id }}</template>
                       <ellipsis-outlined key="ellipsis"/>
                     </a-tooltip>
-
-
                   </template>
                   <a-card-meta>
                     <template #avatar>
