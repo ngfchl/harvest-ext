@@ -29,15 +29,15 @@ export default defineBackground(() => {
                         break;
                     case "searchSingleSite":
                         response = await searchSingleSiteApi(request.payload)
-                        console.log('刷新单站数据执行结果', response)
+                        console.log('单站搜索执行结果', response)
                         break;
                     case "searchMultiSite":
                         response = await searchMultiSiteApi(request.payload)
-                        console.log('刷新单站数据执行结果', response)
+                        console.log('聚合搜索执行结果', response)
                         break;
                     case "signSingleSite":
                         response = await signSingleSiteApi(request.payload)
-                        console.log('刷新单站数据执行结果', response)
+                        console.log('签到单站执行结果', response)
                         break;
                     case "getSiteInfo":
                         response = await getSite(request.payload)

@@ -402,7 +402,7 @@ export const useSettingStore = defineStore("setting", () => {
      */
     const openSignInTab = async (mySite: MySite) => {
         let webSite = webSiteList.value![mySite.site];
-        let url: string = `${mySite.mirror}${webSite.page_sign_in}`.replace('//', '/')
+        let url: string = `${mySite.mirror}${normalizePath(webSite.page_sign_in)}`
         browser.tabs.create({url: url, active: false});
     }
 
@@ -524,6 +524,16 @@ export const useSettingStore = defineStore("setting", () => {
             }
         });
     }
+
+    /**
+     * 去除网址路径前面的/
+     * @param path
+     */
+    function normalizePath(path: string): string {
+        // 移除路径开头的斜杠
+        return path.startsWith('/') ? path.substring(1) : path;
+    }
+
     /**
      * 添加单站
      * @param site
@@ -546,7 +556,7 @@ export const useSettingStore = defineStore("setting", () => {
                         panelUrl = url
                     } else {
                         // 构建完整URL（处理路径格式）
-                        panelUrl = `${url}${site.page_control_panel}`;
+                        panelUrl = `${url}${normalizePath(site.page_control_panel)}`;
                     }
                     // 在新标签页打开（浏览器插件API）
                     console.log('正在打开自动同步页面:', url);
