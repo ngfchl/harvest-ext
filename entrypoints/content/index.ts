@@ -212,7 +212,7 @@ export default defineContentScript({
         // 2025-06-18
         'https://www.devtracker.me/*',
         'https://pt.ying.us.kg/*',
-        // 2025-0621
+        // 2025-06-21
         'https://13city.online/*',
         'https://cc.mypt.cc/*',
         'https://pt.aling.de/*',
@@ -238,7 +238,8 @@ export default defineContentScript({
         'https://nex.jivon.de/*',
         // 2025-07-15
         'https://pt.luckpt.de/*',
-
+        // 2025-07-15
+        'https://13city.org/*',
     ],
     // 2. Set cssInjectionMode
     cssInjectionMode: 'ui',
