@@ -537,7 +537,7 @@ async function getSiteData() {
     siteData += `&id=${mySiteId.value}`
   }
   if (mySiteId.value == 0) {
-    siteData += `&nickname=${siteInfo.value.name}&mirror=${host}`
+    siteData += `&nickname=${siteInfo.value.name}&mirror=${host}&tags=${siteInfo.value.tags.split(',')}`
   }
   let passkey = getPasskey()
   console.log("passkey抓取结果：", passkey)
