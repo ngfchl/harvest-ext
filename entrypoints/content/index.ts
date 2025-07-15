@@ -236,6 +236,9 @@ export default defineContentScript({
         'https://pt.novahd.top/*',
         'https://cangbao.ge/*',
         'https://nex.jivon.de/*',
+        // 2025-07-15
+        'https://pt.luckpt.de/*',
+
     ],
     // 2. Set cssInjectionMode
     cssInjectionMode: 'ui',
