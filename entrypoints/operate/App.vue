@@ -40,7 +40,6 @@ const {
   canSave,
   importMode,
   importCookieMode,
-  isOpenInPopupFlag,
   count,
   syncMode,
   mySiteList,
@@ -56,7 +55,6 @@ const {
   refreshSingleSite,
   autoImportCookie,
   signSingleSite,
-  isOpenInPopup,
   cacheServerData,
   switchImportMode,
   syncSingleSiteCookie,
@@ -66,7 +64,7 @@ const {
   autoOpenAll,
 } = settingStore
 // const mySiteId = ref<number>(0)
-const showSiteList = ref(false);
+const showSiteList = ref(true);
 const collapsed = ref(false);
 const privateMode = ref(false);
 const reverseMode = ref(false);
@@ -229,7 +227,12 @@ const handleFilterList: MenuProps['onClick'] = key => {
 const formMaxWidth = computed(() => {
   return window.innerWidth < 350 ? '90%' : '350px';
 });
-const switchShowSiteList = () => {
+const switchShowSiteList = async () => {
+  if (showMySiteList.value.length < 0) {
+    message.warning('正在加载数据或无站点数据')
+    return
+  }
+  console.log('switchShowSiteList', showMySiteList.value.length)
   showSiteList.value = !showSiteList.value;
   localStorage.setItem('local:showSiteList', JSON.stringify(showSiteList.value));
 }
@@ -292,16 +295,21 @@ onMounted(async () => {
     message.warning('服务器信息加载失败，请先配置服务器信息...');
     return
   }
-  await cacheServerData()
-  isOpenInPopupFlag.value = await isOpenInPopup()
-  importMode.value = await storage.getItem('local:importMode') || false
-  checkScreenSize();
-  window.addEventListener('resize', checkScreenSize);
-  showSiteList.value = JSON.parse(localStorage.getItem('switchShowSiteList') || 'true');
-  privateMode.value = JSON.parse(localStorage.getItem('privateMode') || 'true');
-  showMySiteList.value = Object.values(mySiteList.value!)
+  
+  await initData();
 });
-
+const initData = async () => {
+  await cacheServerData()
+  await nextTick(async () => {
+    importMode.value = await storage.getItem('local:importMode') || false
+    checkScreenSize();
+    window.addEventListener('resize', checkScreenSize);
+    showMySiteList.value = Object.values(mySiteList.value!)
+    showSiteList.value = JSON.parse(localStorage.getItem('switchShowSiteList') || 'true');
+    privateMode.value = JSON.parse(localStorage.getItem('privateMode') || 'true');
+    onSearch()
+  })
+}
 onBeforeUnmount(() => {
   window.removeEventListener('resize', checkScreenSize);
 })
@@ -394,6 +402,10 @@ const calcBadge = (mySite: MySite) => {
   }
   return 'green'
 }
+const loginServer = async () => {
+  await testServer()
+  await initData()
+}
 </script>
 
 <template>
@@ -478,7 +490,7 @@ const calcBadge = (mySite: MySite) => {
             </a-form>
           </a-space>
           <a-space>
-            <a-button v-if="!canSave" block ghost type="primary" @click="testServer">
+            <a-button v-if="!canSave" block ghost type="primary" @click="loginServer">
               登录鉴权
             </a-button>
 
