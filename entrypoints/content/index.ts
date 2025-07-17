@@ -240,6 +240,9 @@ export default defineContentScript({
         'https://pt.luckpt.de/*',
         // 2025-07-15
         'https://13city.org/*',
+        // 2025-07-17
+        'https://pt.agsvpt.cn/*',
+
     ],
     // 2. Set cssInjectionMode
     cssInjectionMode: 'ui',
