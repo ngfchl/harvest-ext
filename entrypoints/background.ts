@@ -375,7 +375,8 @@ async function openPanelUrl(params: {
     setting: Settings,
     host: string,
 }) {
-    await browser.tabs.create({url: params.host});
+    const importMode: boolean = await storage.getItem('local:importMode') || false
+    await browser.tabs.create({url: params.host, active:!importMode});
 }
 
 /**
