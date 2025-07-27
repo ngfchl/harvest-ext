@@ -245,6 +245,8 @@ export default defineContentScript({
         'https://*.cangbao.ge/*',
         'https://*.hxpt.org/*',
         'https://hxpt.org/*',
+        // 2025-07-27
+        'https://sbpt.link/*',
     ],
     // 2. Set cssInjectionMode
     cssInjectionMode: 'ui',
