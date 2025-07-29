@@ -256,9 +256,8 @@ export default defineContentScript({
         const ui = await createShadowRootUi(ctx, {
             name: 'harvest-ui',
             position: "inline",
-            anchor: 'body',
+            anchor: document.documentElement,
             onMount(container) {
-
                 const app = createApp(FloatingWindow);
                 app.use(Antd)
                 app.use(createPinia())
