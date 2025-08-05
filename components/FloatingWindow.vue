@@ -4,6 +4,7 @@ import {message} from "ant-design-vue"
 import {
   ArrowDownOutlined,
   ClearOutlined,
+  CopyOutlined,
   DownloadOutlined,
   DragOutlined,
   PushpinFilled,
@@ -13,6 +14,7 @@ import {
 import {useSettingStore} from "@/hooks/use-setting";
 import {storeToRefs} from "pinia";
 import {Category, CommonResponse, RepeatInfo, Torrent} from "@/types";
+import copy from "copy-to-clipboard";
 
 const settingStore = useSettingStore()
 const {
@@ -334,9 +336,9 @@ async function init_button() {
       location.href.startsWith(siteInfo.value.page_control_panel),
       (location.pathname.search(/usercp.php/) > 0 && !location.href.includes('?'))
   )
-  user_detail_page.value = location.pathname != '/' && (location.href.startsWith(siteInfo.value.page_control_panel)||
-      (siteInfo.value.page_control_panel.includes('{}') && siteInfo.value.page_control_panel.replace('{}',myUid.value)) ||
-      (location.pathname.search(/usercp.php/) > 0 && !location.href.includes('?') ))
+  user_detail_page.value = location.pathname != '/' && (location.href.startsWith(siteInfo.value.page_control_panel) ||
+      (siteInfo.value.page_control_panel.includes('{}') && siteInfo.value.page_control_panel.replace('{}', myUid.value)) ||
+      (location.pathname.search(/usercp.php/) > 0 && !location.href.includes('?')))
   if (user_detail_page.value) {
     console.log('当前为控制面板页')
     await nextTick(async () => {
@@ -491,6 +493,22 @@ const getEmail = () => {
   } catch (e) {
     console.error(e)
     return false
+  }
+}
+
+/**
+ * 复制Cookie
+ */
+const copyCookieString = async () => {
+  let response = await getCookieString(location.host)
+  if (response.succeed) {
+    const success = copy(response.data)
+    message.open({
+      type: success ? 'success' : 'error',
+      content: success ? 'Cookie复制成功' : 'Cookie复制失败',
+    })
+  } else {
+    message.error(response.msg)
   }
 }
 
@@ -976,6 +994,16 @@ const getModalContainer = (id: string = 'modal-container') => {
           <SyncOutlined/>
         </template>
         同步数据
+      </a-button>
+      <a-button
+          block
+          size="small"
+          type="text"
+          @click="copyCookieString">
+        <template #icon>
+          <copy-outlined />
+        </template>
+        获取Cookie
       </a-button>
 
       <a-button
