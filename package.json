@@ -17,9 +17,10 @@
   "dependencies": {
     "@ant-design/icons-vue": "^7.0.1",
     "ant-design-vue": "^3.2.20",
+    "copy-to-clipboard": "^3.3.3",
     "pinia": "^3.0.3",
     "pretty-bytes": "^7.0.0",
-    "vue": "^3.5.17"
+    "vue": "^3.5.18"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.326",
