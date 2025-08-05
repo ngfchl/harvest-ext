@@ -11,8 +11,8 @@ export default defineConfig({
     manifest: {
         name: '收割机助手',
         description: '在收割机支持的网站上显示操作窗口',
-        key: fs.readFileSync('key.pem', 'utf-8'),
-        version: '0.1.24',
+        // key: fs.readFileSync('key.pem', 'utf-8'),
+        version: '0.1.25',
         permissions: ["storage", "cookies", "activeTab", "scripting"],
         host_permissions: [
             "*://*/*",
