@@ -247,6 +247,13 @@ export default defineContentScript({
         'https://hxpt.org/*',
         // 2025-07-27
         'https://sbpt.link/*',
+        // 2025-08-05
+        'https://pting.cc/*',
+        'https://milkie.cc/*',
+        'https://www.yhpp.cc/*',
+        'https://yhpp.cc/*',
+        'https://www.asmrpt.org/*',
+        'https://3changtrai.com/*',
     ],
     // 2. Set cssInjectionMode
     cssInjectionMode: 'ui',
