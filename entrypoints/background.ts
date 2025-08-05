@@ -82,8 +82,17 @@ export default defineBackground(() => {
                     case "getSiteCookies":
                         const cookies = await browser.cookies.getAll({domain: request.payload.host})
                         console.log("后台获取到的 Cookie 内容：", cookies)
-                        let data = cookies.map(cookie => `${cookie.name}=${cookie.value}`)
+                        let cookieMap = new Map();
+                        cookies.forEach(cookie => {
+                            if (!cookieMap.has(cookie.name)) {
+                                cookieMap.set(cookie.name, cookie.value);
+                            }
+                        });
+
+                        let data = Array.from(cookieMap.entries())
+                            .map(([name, value]) => `${name}=${value}`)
                             .join('; ');
+
                         response = data.length > 0 ? CommonResponse.success(data) : CommonResponse.error(-1, 'Cookie获取失败！')
                         break
                     default: {
@@ -436,17 +445,19 @@ export async function writeSingleSiteCookiesApi(params: {
 }) {
     const mySite = params.mySite;
     try {
-        const secure = mySite.mirror!.startsWith('https://');
-        const {hostname} = new URL(mySite.mirror!); // 提取域名
+        const url = new URL(mySite.mirror!);
+        const secure = url.protocol === 'https:';
+        const {hostname} = url; // 提取域名
 
         const pairs = mySite.cookie.split(';');
+        console.log('要写入的Cookie信息：',pairs)
         for (const pair of pairs) {
             const [name, ...rest] = pair.trim().split('=');
             const value = rest.join('=');
             if (!name || !value) continue;
-
+            console.log(url.origin)
             browser.cookies.set({
-                url: mySite.mirror!,
+                url: url.origin,
                 name,
                 value,
                 domain: hostname, // 用主机名
