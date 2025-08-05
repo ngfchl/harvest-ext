@@ -334,8 +334,9 @@ async function init_button() {
       location.href.startsWith(siteInfo.value.page_control_panel),
       (location.pathname.search(/usercp.php/) > 0 && !location.href.includes('?'))
   )
-  user_detail_page.value = location.pathname != '/' && (location.href.startsWith(siteInfo.value.page_control_panel) ||
-      (location.pathname.search(/usercp.php/) > 0 && !location.href.includes('?')))
+  user_detail_page.value = location.pathname != '/' && (location.href.startsWith(siteInfo.value.page_control_panel)||
+      (siteInfo.value.page_control_panel.includes('{}') && siteInfo.value.page_control_panel.replace('{}',myUid.value)) ||
+      (location.pathname.search(/usercp.php/) > 0 && !location.href.includes('?') ))
   if (user_detail_page.value) {
     console.log('当前为控制面板页')
     await nextTick(async () => {
