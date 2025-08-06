@@ -254,6 +254,7 @@ export default defineContentScript({
         'https://yhpp.cc/*',
         'https://www.asmrpt.org/*',
         'https://3changtrai.com/*',
+        'https://longpt.org/*',
     ],
     // 2. Set cssInjectionMode
     cssInjectionMode: 'ui',
