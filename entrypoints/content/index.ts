@@ -257,13 +257,10 @@ export default defineContentScript({
         'https://longpt.org/*',
         // 2025-09-03
         'https://pt.muxuege.org/*',
-        'https://*.hxpt.*/*',
         'https://*.hxpt.top/*',
         'https://marchcms.org/*',
         'https://*.marchcms.org/*',
         'https://*.haoku.de/*',
-        'https://haoku.*/*',
-
     ],
     // 2. Set cssInjectionMode
     cssInjectionMode: 'ui',
