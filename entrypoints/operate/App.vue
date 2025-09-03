@@ -426,8 +426,7 @@ const loginServer = async () => {
         <menu-fold-outlined v-else/>
       </template>
       <a-layout-header class="custom-header">
-        <a-avatar :size="22" shape="square" style="color: #f56a00; background-color: #fde3cf">
-          H
+        <a-avatar src="icon/128.png" :size="24" alt="H"  style="color: #f56a00; background-color: #fde3cf">
         </a-avatar>
         <a-divider dashed type="vertical"></a-divider>
         <a-typography-title :level="4" class="title">
