@@ -110,7 +110,25 @@ const onMouseUp = () => {
 };
 const loadLocalStorage = async () => {
   mySiteId.value = parseInt(JSON.parse(localStorage.getItem('mySite') ?? '0'));
-  siteInfo.value = localStorage.getItem('website');
+  // 如果站点 ID 不存在，使用站点 host 去查找站点配置文件
+  console.log('缓存中的当前站点 ID', mySiteId.value)
+
+  if (!mySiteId.value || mySiteId.value == 0) {
+    siteInfo.value = filterSiteByHost(location.host)
+    console.log('使用站点 host 查找站点信息：', siteInfo.value)
+    if (!siteInfo.value) {
+      message.error('查找站点失败，未在缓存中找到站点信息')
+      return;
+    }
+    console.log('开始从缓存中加载站点数据', mySiteId.value);
+    mySiteId.value = filterMySiteBySiteName(siteInfo.value.name);
+    console.log('查找到的站点信息：', mySiteId.value)
+    localStorage.setItem('mySite', JSON.stringify(mySiteId.value));
+  } else {
+    // 如果站点 Id 存在
+    siteInfo.value = await filterSiteById(mySiteId.value);
+  }
+
   topPosition.value = parseInt(await storage.getItem('local:topPosition') || '240')
   console.log('topPosition', topPosition.value);
 }
@@ -123,25 +141,8 @@ onMounted(async () => {
   await initialize();
   // 从本地存储加载站点信息
   await loadLocalStorage();
-  // 如果站点 ID 不存在，使用站点 host 去查找站点配置文件
-  console.log('缓存中的当前站点 ID', mySiteId.value)
-  if (!mySiteId.value || mySiteId.value == 0) {
-    console.log('开始从缓存中加载站点数据', mySiteId.value);
-    siteInfo.value = filterSiteByHost(location.host)
-    console.log('使用站点 host 查找站点信息：', siteInfo.value)
-    if (!siteInfo.value) {
-      message.error('查找站点失败，未在缓存中找到站点信息')
-      return;
-    }
-    mySiteId.value = filterMySiteBySiteName(siteInfo.value.name);
-    console.log('查找到的站点信息：', mySiteId.value)
-    localStorage.setItem('myUid', JSON.stringify(myUid.value));
-    localStorage.setItem('mySite', JSON.stringify(mySiteId.value));
-  } else {
-    // 如果站点 Id 存在
-    siteInfo.value = await filterSiteById(mySiteId.value);
-  }
-  localStorage.setItem('website', JSON.stringify(siteInfo.value));
+
+  // localStorage.setItem('website', JSON.stringify(siteInfo.value));
   // await getSiteInfo()
   // 在 Shadow DOM 中添加事件监听器
   document.addEventListener("mousemove", onMouseMove);
@@ -241,6 +242,7 @@ async function getUid() {
     return CommonResponse.error(-1, '站点 Uid 获取失败，请上报给开发者！')
   }
   myUid.value = user_id
+  localStorage.setItem('myUid', JSON.stringify(myUid.value));
   return CommonResponse.success(user_id)
 }
 
