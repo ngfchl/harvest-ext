@@ -261,6 +261,8 @@ export default defineContentScript({
         'https://marchcms.org/*',
         'https://*.marchcms.org/*',
         'https://*.haoku.de/*',
+        'https://*.zrpt.cc/*',
+        'https://zrpt.cc/*',
     ],
     // 2. Set cssInjectionMode
     cssInjectionMode: 'ui',
