@@ -295,8 +295,8 @@ onMounted(async () => {
     message.warning('服务器信息加载失败，请先配置服务器信息...');
     return
   }
-  
-  await initData();
+
+  await loginServer();
 });
 const initData = async () => {
   await cacheServerData()
@@ -426,7 +426,7 @@ const loginServer = async () => {
         <menu-fold-outlined v-else/>
       </template>
       <a-layout-header class="custom-header">
-        <a-avatar src="icon/128.png" :size="24" alt="H"  style="color: #f56a00; background-color: #fde3cf">
+        <a-avatar :size="24" alt="H" src="icon/128.png" style="color: #f56a00; background-color: #fde3cf">
         </a-avatar>
         <a-divider dashed type="vertical"></a-divider>
         <a-typography-title :level="4" class="title">
