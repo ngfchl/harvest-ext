@@ -263,6 +263,10 @@ export default defineContentScript({
         'https://*.haoku.de/*',
         'https://*.zrpt.cc/*',
         'https://zrpt.cc/*',
+        // 2025-10-02
+        'https://www.yhpp.cc/*',
+        'https://dubhe.site/*',
+        'https://www.momentpt.top/*',
     ],
     // 2. Set cssInjectionMode
     cssInjectionMode: 'ui',
