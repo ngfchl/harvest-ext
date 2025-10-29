@@ -261,6 +261,9 @@ export default defineContentScript({
         'https://marchcms.org/*',
         'https://*.marchcms.org/*',
         'https://*.haoku.de/*',
+        // 2025-10-29
+        'https://pterclub.net/*',
+
     ],
     // 2. Set cssInjectionMode
     cssInjectionMode: 'ui',
