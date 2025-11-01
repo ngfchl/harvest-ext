@@ -267,6 +267,15 @@ export default defineContentScript({
         'https://www.yhpp.cc/*',
         'https://dubhe.site/*',
         'https://www.momentpt.top/*',
+        // 2025-10-29
+        'https://pterclub.net/*',
+        // 2025-11-01
+        'https://mooko.org/*',
+        'https://clearjav.com/*',
+        'https://lat-team.com/*',
+        'https://happyfappy.org/*',
+        'https://www.scenetime.com/*',
+        'https://kufirc.com/*',
     ],
     // 2. Set cssInjectionMode
     cssInjectionMode: 'ui',
