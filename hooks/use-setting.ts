@@ -412,6 +412,9 @@ export const useSettingStore = defineStore("setting", () => {
     const autoOpenAll = async (mySiteList: MySite[]) => {
         for (const site of mySiteList) {
             try {
+                if (!site.available) {
+                    continue
+                }
                 browser.tabs.create({url: site.mirror!, active: false});
             } catch (e) {
                 console.log(e)
