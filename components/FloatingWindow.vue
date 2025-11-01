@@ -382,6 +382,7 @@ async function init_button() {
 // if (location.pathname.includes(siteInfo.value.page_torrents) //尝试与配置文件中的信息绑定
   if (!(location.pathname.search(/torrents\/\D*/) > 0 ||
       location.pathname.search(/t$/) > 0 ||
+      location.pathname.startsWith('/browse') ||
       location.pathname.endsWith('/Torrents') ||
       location.pathname.includes('/music.php') ||
       location.pathname.includes('/special.php') ||
@@ -613,7 +614,7 @@ const torrents = ref<any>([])
  * @param s
  */
 const extractId = (s: string) => {
-  const regexAll = /(?:t[-\/]|[?&]id=)(\d+)/;
+  const regexAll = /(?:t[-\/]|[?&]id=|\/detail\/)(\d+)/;
   return s.match(regexAll)?.[1]
 }
 
@@ -1003,7 +1004,7 @@ const getModalContainer = (id: string = 'modal-container') => {
           type="text"
           @click="copyCookieString">
         <template #icon>
-          <copy-outlined />
+          <copy-outlined/>
         </template>
         获取Cookie
       </a-button>
