@@ -653,17 +653,27 @@ export const useSettingStore = defineStore("setting", () => {
      * @param host
      */
     const getCookieString = async (host: string) => {
-        const domainSplitList = host.split('.')
-        if (domainSplitList.length > 2) {
-            host = domainSplitList.slice(1).join('.')
-        }
-        const cookies: CommonResponse<any> = await browser.runtime.sendMessage({
-            type: 'getSiteCookies',
-            payload: {
-                setting: toRaw(setting.value),
-                host: host,
+        var cookies;
+        if (host.includes('m-team')) {
+            let auth = localStorage.getItem('auth');
+            if (!auth) {
+
+                return CommonResponse.error(-1, "MTeam Cookie 信息获取失败！")
             }
-        });
+            return CommonResponse.success(auth);
+        } else {
+            const domainSplitList = host.split('.')
+            if (domainSplitList.length > 2) {
+                host = domainSplitList.slice(1).join('.')
+            }
+            cookies = await browser.runtime.sendMessage({
+                type: 'getSiteCookies',
+                payload: {
+                    setting: toRaw(setting.value),
+                    host: host,
+                }
+            });
+        }
         console.log("Cookies:", cookies)
         return cookies
     }
