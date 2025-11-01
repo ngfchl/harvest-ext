@@ -13,7 +13,7 @@ export default defineBackground(() => {
                 switch (request.type) {
                     case "writeSingleSiteCookies":
                         response = await writeSingleSiteCookiesApi(request.payload)
-                        console.log('打开指定页面执行结果', response)
+                        console.log('写入单站Cookie执行结果', response)
                         break;
                     case "openPanelUrl":
                         response = await openPanelUrl(request.payload)
@@ -385,7 +385,7 @@ async function openPanelUrl(params: {
     host: string,
 }) {
     const importMode: boolean = await storage.getItem('local:importMode') || false
-    await browser.tabs.create({url: params.host, active:!importMode});
+    await browser.tabs.create({url: params.host, active: !importMode});
 }
 
 /**
@@ -401,7 +401,7 @@ async function clearSiteHarvestInfo(params: {
             const tabId = tab.id;
             // 等待页面加载完成
             console.log(`开始清理：${params.host} 站点收割机相关缓存信息...`)
-            const handleUpdate = (updatedTabId: number, changeInfo: Browser.tabs.TabChangeInfo) => {
+            const handleUpdate = (updatedTabId: number, changeInfo: Browser.tabs.OnUpdatedInfo,) => {
                 if (updatedTabId === tabId && changeInfo.status === 'complete') {
                     // 注入脚本执行 localStorage 删除
                     browser.scripting.executeScript({
@@ -450,7 +450,7 @@ export async function writeSingleSiteCookiesApi(params: {
         const {hostname} = url; // 提取域名
 
         const pairs = mySite.cookie.split(';');
-        console.log('要写入的Cookie信息：',pairs)
+        console.log('要写入的Cookie信息：', pairs)
         for (const pair of pairs) {
             const [name, ...rest] = pair.trim().split('=');
             const value = rest.join('=');
