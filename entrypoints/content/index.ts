@@ -276,6 +276,9 @@ export default defineContentScript({
         'https://happyfappy.org/*',
         'https://www.scenetime.com/*',
         'https://kufirc.com/*',
+        // 2025-11-12
+        'https://hdvideo.top/*',
+        'https://www.tangpt.top/qmc*',
     ],
     // 2. Set cssInjectionMode
     cssInjectionMode: 'ui',
