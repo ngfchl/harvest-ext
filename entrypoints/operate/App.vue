@@ -70,7 +70,7 @@ const privateMode = ref(false);
 const reverseMode = ref(false);
 const searchKey = ref('');
 const sortKey = ref('mail');
-const filterKey = ref('');
+const filterKey = ref('alive');
 const showMySiteList = ref<MySite[]>([]);
 
 const sortKeyList = {
@@ -87,6 +87,8 @@ const sortKeyList = {
 }
 
 const filterKeyList = {
+  null: '清除筛选',
+  alive: '站点存活',
   mail: '消息通知',
   signIn: '未签到',
   downloaded: '无下载量',
@@ -100,8 +102,13 @@ const filterKeyList = {
   bonus_hour: '时魔异常',
   ratio: '分享率异常',
 }
-const doFilter = (value: string = '') => {
+const doFilter = (value: string | null = null) => {
   switch (value) {
+    case null:
+      break;
+    case 'alive':
+      showMySiteList.value = showMySiteList.value.filter(site => site.available)
+      break;
     case 'mail':
     case 'notice':
       showMySiteList.value = showMySiteList.value.filter(site => (site.mail + site.notice) > 0)
@@ -762,7 +769,7 @@ const loginServer = async () => {
                 :lg="8" :md="12"
                 :sm="24"
                 :xl="6">
-              <a-badge-ribbon :color="calcBadge(mySite)" :text="mySite.available ?'':'站点已禁用'">
+              <a-badge-ribbon :color="calcBadge(mySite)" :text="mySite.available ?'':'站点已禁用'" placement="start">
                 <a-card hoverable size="small" style="width: 100% !important;min-width: 300px;">
                   <template #extra>
                     <a-badge v-if="mySite.notice > 0" :count="mySite.notice"
