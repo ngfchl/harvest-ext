@@ -1,5 +1,4 @@
 import {defineConfig} from 'wxt';
-import * as fs from "node:fs";
 // See https://wxt.dev/api/config.html
 export default defineConfig({
     modules: ['@wxt-dev/module-vue'],
@@ -11,8 +10,8 @@ export default defineConfig({
     manifest: {
         name: '收割机助手',
         description: '在收割机支持的网站上显示操作窗口',
-        key: fs.readFileSync('key.pem', 'utf-8'),
-        version: '0.1.29',
+        // key: fs.readFileSync('key.pem', 'utf-8'),
+        version: '0.2.0',
         permissions: ["storage", "cookies", "activeTab", "scripting"],
         host_permissions: [
             "*://*/*",
