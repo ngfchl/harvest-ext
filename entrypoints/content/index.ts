@@ -278,7 +278,8 @@ export default defineContentScript({
         'https://kufirc.com/*',
         // 2025-11-12
         'https://hdvideo.top/*',
-        'https://www.tangpt.top/qmc*',
+        'https://www.tangpt.top/*',
+        'https://tangpt.top/*',
     ],
     // 2. Set cssInjectionMode
     cssInjectionMode: 'ui',
