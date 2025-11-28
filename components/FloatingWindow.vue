@@ -195,6 +195,9 @@ async function go_to_control_page() {
     await getSiteInfo()
   }
   let url = siteInfo.value.page_control_panel
+  if (!url.startsWith('/')) {
+    url = `/${url}`
+  }
   if (url.includes('{}')) {
     let UserIdRes = await getUid()
     if (!UserIdRes.succeed) {
@@ -212,7 +215,7 @@ async function getUid() {
   const node = document.evaluate(siteInfo.value.my_uid_rule, document).iterateNext();
   console.log(node)
   let href = node?.textContent?.trim();
-  console.log(href)
+  console.log('解析 UID 链接', href)
   if (!href) {
     console.log('解析 UID 链接出错啦！')
     return CommonResponse.error(-1, '解析 UID 链接出错啦！')
@@ -235,6 +238,7 @@ async function getUid() {
     // path 模式
     user_id = href.split('/').pop()?.trim() || null;
   }
+  console.log('当前站点UID为：', user_id);
   if (!user_id) {
     return CommonResponse.error(-1, '非本人主页，取消同步！')
   }
@@ -338,9 +342,10 @@ async function init_button() {
       location.href.startsWith(siteInfo.value.page_control_panel),
       (location.pathname.search(/usercp.php/) > 0 && !location.href.includes('?'))
   )
-  user_detail_page.value = location.pathname != '/' && (location.href.startsWith(siteInfo.value.page_control_panel) ||
+  user_detail_page.value = location.pathname != '/' && (location.href.replace(`${location.origin}/`, '').startsWith(siteInfo.value.page_control_panel) ||
       (siteInfo.value.page_control_panel.includes('{}') && siteInfo.value.page_control_panel.replace('{}', myUid.value)) ||
       (location.pathname.search(/usercp.php/) > 0 && !location.href.includes('?')))
+  console.log('控制面板页面检测结果：', user_detail_page.value);
   if (user_detail_page.value) {
     console.log('当前为控制面板页')
     await nextTick(async () => {
