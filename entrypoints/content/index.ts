@@ -280,6 +280,9 @@ export default defineContentScript({
         'https://hdvideo.top/*',
         'https://www.tangpt.top/*',
         'https://tangpt.top/*',
+        // 2025-12-09
+        'https://pt.tu88.men/*',
+        'https://p.t-baozi.cc/*',
     ],
     // 2. Set cssInjectionMode
     cssInjectionMode: 'ui',
