@@ -92,21 +92,23 @@ const onMouseMove = async (e: MouseEvent) => {
 const onMouseUp = () => {
   isDragging = false;
   if (!harvestWrap.value) return;
-  if (harvestWrap.value) {
-    harvestWrap.value.style.cursor = "grab";
-  }
+  harvestWrap.value.style.cursor = "grab";
+
   // 获取屏幕宽度和元素宽度
   const screenWidth = window.innerWidth;
   const elementWidth = harvestWrap.value?.offsetWidth;
   const elementLeft = parseInt(harvestWrap.value.style.left, 10);
-
+// 先清理方向 class
+  harvestWrap.value.classList.remove("dock-left", "dock-right");
   // 判断停靠位置
   if (elementLeft > screenWidth / 2 - elementWidth / 2) {
     // 靠右停放
-    harvestWrap.value.style.left = `${screenWidth - elementWidth}px`;
+    harvestWrap.value.style.right = `0px`;
+    harvestWrap.value.classList.add("dock-right");
   } else {
     // 靠左停放
     harvestWrap.value!.style.left = "0px";
+    harvestWrap.value.classList.add("dock-left");
   }
 };
 const loadLocalStorage = async () => {
@@ -988,17 +990,11 @@ const getModalContainer = (id: string = 'modal-container') => {
     <div id="message-container"></div>
     <div id="modal-container"></div>
     <div id="drawer-container"></div>
-    <div style="position:relative;">
-      <a-image
-          :preview="false"
-          :src="setting.imgUrl"
-          class="image"
-          fallback="https://picsum.photos/110/55/?random"
-          width="110"
-      />
+    <div class="harvest-img" style="">
+      <a-avatar :src="`${setting.baseUrl}/favicon.ico`" size="small"/>
       <DragOutlined class="move-item" @mousedown="onMouseDown"/>
     </div>
-    <a-space v-if="hover" direction="vertical">
+    <a-space v-if="hover" direction="vertical" style="background-color: rgba(255,255,255,0.73)">
       <a-button
           :href="setting.baseUrl" block danger
           size="small" style="width: 110px;"
@@ -1254,7 +1250,8 @@ const getModalContainer = (id: string = 'modal-container') => {
   float: left;
   opacity: 0.7;
   font-size: 12px;
-  background-color: #fff;
+  padding-top: 2px;
+  background-color: rgba(255, 255, 255, 0);
   cursor: grab;
 }
 
@@ -1262,10 +1259,21 @@ const getModalContainer = (id: string = 'modal-container') => {
   opacity: 1.0;
 }
 
-.harvest-wrap > img, .image {
-  border-radius: 2px;
-  width: 110px;
-  height: 55px;
+/* 图片固定在顶部 */
+.harvest-img {
+  position: absolute;
+  z-index: 9999;
+  top: -24px; /* 距顶部距离，可自行调 */
+  background-color: rgba(255, 255, 255, 0);
+}
+
+/* 左右停靠 */
+.dock-left .harvest-img {
+  left: 0;
+}
+
+.dock-right .harvest-img {
+  right: 0;
 }
 
 .ant-form {
