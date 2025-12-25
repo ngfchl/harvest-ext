@@ -12,7 +12,7 @@ export default defineConfig({
         description: '在收割机支持的网站上显示操作窗口',
         // key: fs.readFileSync('key.pem', 'utf-8'),
         version: '0.2.1',
-        permissions: ["storage", "cookies", "activeTab", "scripting"],
+        permissions: ["storage", "cookies", "activeTab", "scripting", 'contextMenus'],
         host_permissions: [
             "*://*/*",
         ], // 或精准配置

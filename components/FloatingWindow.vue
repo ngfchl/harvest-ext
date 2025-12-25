@@ -15,6 +15,7 @@ import {useSettingStore} from "@/hooks/use-setting";
 import {storeToRefs} from "pinia";
 import {Category, CommonResponse, RepeatInfo, Torrent} from "@/types";
 import copy from "copy-to-clipboard";
+import {MENU_IDS} from "@/components/menu";
 
 const settingStore = useSettingStore()
 const {
@@ -147,6 +148,9 @@ onMounted(async () => {
   // 在 Shadow DOM 中添加事件监听器
   document.addEventListener("mousemove", onMouseMove);
   document.addEventListener("mouseup", onMouseUp);
+  window.addEventListener('harvest:action', (e: any) => {
+    handleHarvestAction(e.detail);
+  });
   await nextTick(async () => {
     // 在 DOM 元素渲染完成后执行的代码
     // 可以在这里操作已经渲染的 DOM 元素或执行其他需要在 DOM 渲染完成后执行的逻辑
@@ -156,6 +160,25 @@ onMounted(async () => {
   });
 });
 
+const handleHarvestAction = async (action: string) => {
+  switch (action) {
+    case MENU_IDS.SYNC:
+      await go_to_control_page();
+      break;
+    case MENU_IDS.CLEAR_CACHE:
+      await clearCurrentCache();
+      break;
+    case MENU_IDS.GET_COOKIE:
+      await copyCookieString();
+      break;
+    case MENU_IDS.OPEN_HARVESTER:
+      await openHarvester();
+      break;
+  }
+}
+const openHarvester = async () => {
+  window.open(setting.value.baseUrl, '_blank');
+}
 /**
  * 获取站点相关规则
  * @returns

@@ -1,8 +1,56 @@
 import {CommonResponse, MySite, Settings, SiteInfo, Torrent} from "@/types";
 import {fetchApi} from "@/hooks/requests";
+import {MENU_IDS} from "@/components/menu";
 
 
 export default defineBackground(() => {
+
+    // 注册右键菜单
+    browser.runtime.onInstalled.addListener(createContextMenu);
+
+    function createContextMenu() {
+        // 先移除旧菜单（开发时有用）
+        browser.contextMenus.removeAll();
+
+        // 创建“邮件助手”标题（不可点击）
+        browser.contextMenus.create({
+            id: MENU_IDS.ROOT,
+            title: '收割机助手',
+            contexts: ['page'], // 在页面任意位置右键显示
+            // enabled: false,     // 不可点击
+        });
+
+        // 创建功能项
+        const actions = [
+            {id: MENU_IDS.SYNC, title: '🔄 同步站点'},
+            {id: MENU_IDS.CLEAR_CACHE, title: '🧹 清理缓存'},
+            {id: MENU_IDS.GET_COOKIE, title: '🍪 获取 Cookie'},
+            {id: MENU_IDS.OPEN_HARVESTER, title: '🚜 打开收割机'},
+        ];
+
+        for (const action of actions) {
+            browser.contextMenus.create({
+                id: action.id,
+                title: action.title,
+                contexts: ['page'],
+                parentId: MENU_IDS.ROOT, // ← 在支持 parentId 的浏览器（如 Firefox）中会嵌套
+            });
+        }
+    }
+
+    browser.contextMenus.onClicked.addListener(async (info, tab) => {
+        console.log(`正在操作的页面信息：${tab?.id}，当前操作：${info}`);
+        if (!tab?.id) return
+
+        browser.tabs.sendMessage(tab.id, {
+            type: 'HARVEST_MENU_ACTION',
+            action: info.menuItemId,
+        }).catch(() => {
+            console.warn('Harvest floating not ready');
+        });
+        
+    })
+
     console.log('Hello background!', {id: browser.runtime.id});
     // 监听消息
     browser.runtime.onMessage.addListener((request, sender: Browser.runtime.MessageSender, sendResponse) => {
