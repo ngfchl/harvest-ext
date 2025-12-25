@@ -487,17 +487,17 @@ const loginServer = async () => {
                     placeholder="安全Token"
                 />
               </a-form-item>
-              <a-form-item
-                  :wrapper-col="{ span: 24 }"
-              >
-                <a-input
-                    v-model:value.lazy="setting.imgUrl"
-                    autofocus
-                    label="图片地址"
-                    placeholder="图片地址"
-                    style="width: 100%"
-                />
-              </a-form-item>
+              <!--              <a-form-item-->
+              <!--                  :wrapper-col="{ span: 24 }"-->
+              <!--              >-->
+              <!--                <a-input-->
+              <!--                    v-model:value.lazy="setting.imgUrl"-->
+              <!--                    autofocus-->
+              <!--                    label="图片地址"-->
+              <!--                    placeholder="图片地址"-->
+              <!--                    style="width: 100%"-->
+              <!--                />-->
+              <!--              </a-form-item>-->
             </a-form>
           </a-space>
           <a-space>
@@ -705,13 +705,13 @@ const loginServer = async () => {
                 placeholder="安全Token"
             />
 
-            <a-input
-                v-model:value.lazy="setting.imgUrl"
-                autofocus
-                label="图片地址"
-                placeholder="图片地址"
-                style="width: 100%"
-            />
+            <!--            <a-input-->
+            <!--                v-model:value.lazy="setting.imgUrl"-->
+            <!--                autofocus-->
+            <!--                label="图片地址"-->
+            <!--                placeholder="图片地址"-->
+            <!--                style="width: 100%"-->
+            <!--            />-->
             <a-popover title="更新服务器信息">
               <template #content>
                 <p style="max-width: 200px;">
