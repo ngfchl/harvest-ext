@@ -221,7 +221,12 @@ async function getUid() {
     return CommonResponse.error(-1, '解析 UID 链接出错啦！')
   }
 
-  let user_id: string | null;
+  let user_id: string | null = null;
+  const segments = href
+      .split('/')
+      .map(s => s.trim())
+      .filter(s => s !== '');
+
   if (href.includes('=')) {
     // URL 模式
     const fullUrl = href.startsWith('http') ? href : `${location.origin}/${href}`;
@@ -236,7 +241,14 @@ async function getUid() {
     user_id = href.trim()
   } else {
     // path 模式
-    user_id = href.split('/').pop()?.trim() || null;
+    if (/\/\d+$/.test(href)) {
+      const lastSegment = segments[segments.length - 1];
+      if (/^\d+$/.test(lastSegment)) {
+        user_id = lastSegment;
+      }
+    } else {
+      user_id = href.split('/').pop()?.trim() || null;
+    }
   }
   console.log('当前站点UID为：', user_id);
   if (!user_id) {
@@ -361,6 +373,7 @@ async function init_button() {
       || location.pathname.includes('/Torrents/details')
       || location.pathname.search(/torrent\/\D*\d+/) > 0
       || location.pathname.search(/t\/\d+/) > 0
+      || location.pathname.search(/detail\/\d+$/) > 0
   ) {
     console.log('当前为种子详情页')
     torrent_detail_page.value = true
@@ -764,7 +777,8 @@ async function get_torrent_detail() {
   let poster = xpath(siteInfo.value.detail_poster_rule, document).snapshotItem(0)
   let tags = xpath(siteInfo.value.detail_tags_rule, document)
   let hr = xpath(siteInfo.value.detail_hr_rule, document).snapshotItem(0)
-  let tid = location.search.match(/id=(\d+)/)![1]
+  let tid = location.pathname.match(/^\/detail\/(\d+)$/)?.[1] ||
+      location.search.match(/id=(\d+)/)?.[1];
 
   console.log(hash_string)
   let tag = []
