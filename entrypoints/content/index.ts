@@ -283,6 +283,12 @@ export default defineContentScript({
         // 2025-12-09
         'https://pt.tu88.men/*',
         'https://p.t-baozi.cc/*',
+        // 2025-12-25
+        'https://mua.xloli.cc/*',
+        'https://farmm.cc/*',
+        'https://pt1.gtkpw.xyz/*',
+        'https://xingwan.cc/*',
+
     ],
     // 2. Set cssInjectionMode
     cssInjectionMode: 'ui',
@@ -309,6 +315,18 @@ export default defineContentScript({
 
         // 4. Mount the UI
         ui.mount();
+        if (!(window as any).__HARVEST_MENU_LISTENER__) {
+            (window as any).__HARVEST_MENU_LISTENER__ = true;
+
+            browser.runtime.onMessage.addListener((msg) => {
+                if (msg.type !== 'HARVEST_MENU_ACTION') return
+                window.dispatchEvent(
+                    new CustomEvent('harvest:action', {
+                        detail: msg.action,
+                    })
+                );
+            })
+        }
     },
 });
 
