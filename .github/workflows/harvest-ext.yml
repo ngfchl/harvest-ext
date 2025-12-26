@@ -136,7 +136,7 @@ jobs:
           echo "打包Firefox插件"
           pnpm run zip:firefox
           echo "重命名Firefox插件"
-          cp harvest-addon-firefox.zip harvest-addon-firefox.xpi
+          cp .output/harvest-addon-firefox.zip .output/harvest-addon-firefox.xpi
 
       # 上传到 Firefox 扩展商店
       - name: Upload to Firefox Add-ons
