@@ -123,7 +123,6 @@ jobs:
         uses: pnpm/action-setup@v4
         with:
           version: 10
-          cache: true
 
       - name: 安装依赖
         run: pnpm install --frozen-lockfile
@@ -148,6 +147,7 @@ jobs:
           auth-api-issuer: ${{ secrets.FIREFOX_JWT_USER }}
           auth-api-secret: ${{ secrets.FIREFOX_SECRET }}
           approval-note: '{"scripts": {"dev": "wxt", "dev:firefox": "wxt -b firefox", "build": "wxt build", "build:firefox": "wxt build -b firefox", "zip": "wxt zip", "zip:firefox": "wxt zip -b firefox", "compile": "vue-tsc --noEmit", "postinstall": "wxt prepare"}}'
+          release-note: ${{ steps.changelog.outputs.changelog }}
 
 
       # 上传到 Edge 扩展商店
