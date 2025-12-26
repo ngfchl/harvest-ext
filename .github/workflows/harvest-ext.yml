@@ -142,7 +142,7 @@ jobs:
       - name: Upload to Firefox Add-ons
         uses: browser-actions/release-firefox-addon@latest
         with:
-          addon-id: '{fe6522a9-e41e-4ceb-931b-a648549de44b}'  # 你的插件 GUID
+          addon-id: ${{ secrets.FIREFOX_GUID }}  # 你的插件 GUID
           addon-path: .output/harvest-addon-firefox.xpi  # 使用重命名后的 .xpi 文件
           source-path: .output/harvest-addon-sources.zip  # 使用重命名后的 .xpi 文件
           auth-api-issuer: ${{ secrets.FIREFOX_JWT_USER }}
