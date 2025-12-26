@@ -132,9 +132,9 @@ jobs:
       - name: Zip Extension
         run: |
           echo "打包Chrome插件"
-          wxt zip 
+          pnpm run zip 
           echo "打包Firefox插件"
-          wxt zip -b firefox
+          pnpm run zip:firefox
           echo "重命名Firefox插件"
           cp harvest-addon-firefox.zip harvest-addon-firefox.xpi
 
