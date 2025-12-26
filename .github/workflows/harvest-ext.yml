@@ -119,16 +119,14 @@ jobs:
           echo -e "$FINAL_LOG" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: 设置 Node.js
-        uses: actions/setup-node@v6
+      - name: 设置 pnpm
+        uses: pnpm/action-setup@v4
         with:
-          # 选择要使用的 node 版本
-          node-version: 24
-          # 缓存 pnpm 依赖
-          cache: 'pnpm'
+          version: 10
+          cache: true
 
       - name: 安装依赖
-        run: npm install -g pnpm && npm install -g wxt && pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       # 打包 Firefox 插件
       - name: Zip Extension
