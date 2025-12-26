@@ -1,0 +1,192 @@
+name: Deploy Browser Extensions
+
+on:
+  push:
+    tags:
+      - '*'  # 匹配所有 tag，例如 v1.0.0
+  workflow_dispatch:
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+        with:
+          ref: master
+
+      - name: 生成发行版变更日志
+        id: changelog
+        shell: bash
+        run: |
+          CURRENT_TAG=${GITHUB_REF#refs/tags/}
+          PREV_TAG=$(git describe --tags --abbrev=0 ${CURRENT_TAG}^ 2>/dev/null || echo "")
+
+          echo "当前 TAG: $CURRENT_TAG"
+          echo "上一个 TAG: $PREV_TAG"
+
+          if [ -z "$PREV_TAG" ]; then
+            RANGE=""
+          else
+            RANGE="$PREV_TAG..$CURRENT_TAG"
+          fi
+
+          # 获取原始 git log（排除 chore 和 merge）
+          RAW_LOG=$(git log $RANGE --pretty=format:"%H|%s" --no-merges | grep -v -E '^.*\|(chore|chore:)' || true)
+
+          # 分类存储
+          FEAT=""
+          FIX=""
+          DOCS=""
+          REFACTOR=""
+          PERF=""
+          TEST=""
+          UPDATE=""
+          OTHER=""
+
+          while IFS='|' read -r HASH MSG; do
+            [ -z "$HASH" ] && continue
+
+            # 如果是 GitHub PR merge 提交，跳过（已被上方 --no-merges 排除）
+            # 查询 PR 标题（如果 commit 提到 #PR_NUMBER）
+            PR_TITLE=""
+            if [[ "$MSG" =~ \#([0-9]+) ]]; then
+              PR_NUM="${BASH_REMATCH[1]}"
+              PR_TITLE=$(gh pr view "$PR_NUM" --json title --jq '.title' 2>/dev/null || echo "")
+            fi
+
+            DISPLAY_MSG="$MSG"
+            if [ -n "$PR_TITLE" ]; then
+              DISPLAY_MSG="$PR_TITLE (#$PR_NUM)"
+            fi
+
+            # 清洗危险字符（防止 GitHub Actions / Shell / API 出问题）
+            DISPLAY_MSG="${DISPLAY_MSG//\"/}"
+            DISPLAY_MSG="$(printf '%s' "$DISPLAY_MSG")"
+
+            SHORT_HASH=$(echo "$HASH" | cut -c1-7)
+
+            if [[ "$MSG" =~ ^feat ]]; then
+                FEAT+="\n- ${DISPLAY_MSG} (${SHORT_HASH})"
+            elif [[ "$MSG" =~ ^fix ]]; then
+                FIX+="\n- ${DISPLAY_MSG} (${SHORT_HASH})"
+            elif [[ "$MSG" =~ ^docs ]]; then
+                DOCS+="\n- ${DISPLAY_MSG} (${SHORT_HASH})"
+            elif [[ "$MSG" =~ ^refactor ]]; then
+                REFACTOR+="\n- ${DISPLAY_MSG} (${SHORT_HASH})"
+            elif [[ "$MSG" =~ ^perf ]]; then
+                PERF+="\n- ${DISPLAY_MSG} (${SHORT_HASH})"
+            elif [[ "$MSG" =~ ^test ]]; then
+                TEST+="\n- ${DISPLAY_MSG} (${SHORT_HASH})"
+            elif [[ "$MSG" =~ ^update ]]; then
+                UPDATE+="\n- ${DISPLAY_MSG} (${SHORT_HASH})"
+            else
+                OTHER+="\n- ${DISPLAY_MSG} (${SHORT_HASH})"
+            fi
+          done <<< "$RAW_LOG"
+
+          # 组合中文日志
+          FINAL_LOG=""
+
+          if [ -n "$FEAT" ]; then
+            FINAL_LOG+="\n### ✨ 新增功能\n${FEAT}\n"
+          fi
+          if [ -n "$FIX" ]; then
+            FINAL_LOG+="\n### 🐛 修复问题\n${FIX}\n"
+          fi
+          if [ -n "$DOCS" ]; then
+            FINAL_LOG+="\n### 📖 文档更新\n${DOCS}\n"
+          fi
+          if [ -n "$REFACTOR" ]; then
+            FINAL_LOG+="\n### 🔨 重构\n${REFACTOR}\n"
+          fi
+          if [ -n "$PERF" ]; then
+            FINAL_LOG+="\n### ⚡ 性能优化\n${PERF}\n"
+          fi
+          if [ -n "$TEST" ]; then
+            FINAL_LOG+="\n### 🧪 测试相关\n${TEST}\n"
+          fi
+          if [ -n "$UPDATE" ]; then
+            FINAL_LOG+="\n### 🔄 更新\n${UPDATE}\n"
+          fi
+          if [ -n "$OTHER" ]; then
+            FINAL_LOG+="\n### 📌 其他变更\n${OTHER}\n"
+          fi
+
+          # 回写到 GitHub 输出
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$FINAL_LOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: 设置 Node.js
+        uses: actions/setup-node@v6
+        with:
+          # 选择要使用的 node 版本
+          node-version: 24
+          # 缓存 pnpm 依赖
+          cache: 'pnpm'
+
+      - name: 安装依赖
+        run: npm install -g pnpm && npm install -g wxt && pnpm install --frozen-lockfile
+
+      # 打包 Firefox 插件
+      - name: Zip Extension
+        run: |
+          echo "打包Chrome插件"
+          wxt zip 
+          echo "打包Firefox插件"
+          wxt zip -b firefox
+          echo "重命名Firefox插件"
+          cp harvest-addon-firefox.zip harvest-addon-firefox.xpi
+
+      # 上传到 Firefox 扩展商店
+      - name: Upload to Firefox Add-ons
+        uses: browser-actions/public-firefox-addon@latest
+        with:
+          auth-api-issuer: ${{ secrets.FIREFOX_JWT_USER }}
+          auth-api-secret: ${{ secrets.FIREFOX_SECRET }}
+          addon-id: '{fe6522a9-e41e-4ceb-931b-a648549de44b}'  # 你的插件 GUID
+          addon-path: .output/harvest-addon-firefox.xpi  # 使用重命名后的 .xpi 文件
+          source-path: .output/harvest-addon-sources.zip  # 使用重命名后的 .xpi 文件
+          approval-note: |
+            "scripts": {
+                "dev": "wxt",
+                "dev:firefox": "wxt -b firefox",
+                "build": "wxt build",
+                "build:firefox": "wxt build -b firefox",
+                "zip": "wxt zip",
+                "zip:firefox": "wxt zip -b firefox",
+                "compile": "vue-tsc --noEmit",
+                "postinstall": "wxt prepare"
+            }
+
+      # 上传到 Edge 扩展商店
+      - name: Upload to Microsoft Edge Add-ons
+        uses: web-scrobbler/edge-addon@v2.0.4
+        with:
+          product_id: ${{ secrets.EDGE_PRODUCT_ID }}
+          client_id: ${{ secrets.EDGE_CLIENT_ID }}
+          api_key: ${{ secrets.EDGE_CLIENT_SECRET }}
+          zip: .output/harvest-addon-chrome.zip  # 你打包的 Edge 插件路径
+          notes: | # 可根据发布说明自动生成
+            Edge 插件测试
+            测试地址：http://ext.ptools.fun/
+            安全 Token：zP5wIZzo
+
+      - name: 发布 Firefox 版本到 GitHub Releases
+        uses: softprops/action-gh-release@v2  # 发布 GitHub Release
+        with:
+          token: ${{ secrets.TOKEN_GITHUB }}
+          files: |
+            .output/harvest-addon-chrome.zip
+            .output/harvest-addon-firefox.xpi
+            .output/harvest-addon-firefox.zip
+            .output/harvest-addon-sources.zip
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || github.sha }}  # 使用 tag 或提交哈希命名
+          name: Release ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || github.sha }}
+          draft: ${{ startsWith(github.ref, 'refs/tags/') == false }}  # 如果不是 tag，作为草稿
+          prerelease: false  # 不标记为预发布版本
+          body: |
+            ## 📌 更新日志
+            ${{ steps.changelog.outputs.changelog }}
