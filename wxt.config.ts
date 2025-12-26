@@ -23,7 +23,9 @@ export default defineConfig({
     // 打包配置
     zip: {
         // 自定义 ZIP 文件名模板
-        artifactTemplate: '收割机助手-v{{version}}-{{browser}}.zip',
+        // artifactTemplate: '收割机助手-v{{version}}-{{browser}}.zip',
+        artifactTemplate: 'harvest-addon-{{browser}}.zip',
+        sourcesTemplate: 'harvest-addon-sources.zip',
         // 其他可选配置
         // name: '自定义名称', // 覆盖默认的项目名称
         // compressionLevel: 9, // 压缩级别 (0-9)
