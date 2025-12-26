@@ -142,13 +142,13 @@ jobs:
 
       # 上传到 Firefox 扩展商店
       - name: Upload to Firefox Add-ons
-        uses: browser-actions/public-firefox-addon@latest
+        uses: browser-actions/release-firefox-addon@latest
         with:
-          auth-api-issuer: ${{ secrets.FIREFOX_JWT_USER }}
-          auth-api-secret: ${{ secrets.FIREFOX_SECRET }}
           addon-id: '{fe6522a9-e41e-4ceb-931b-a648549de44b}'  # 你的插件 GUID
           addon-path: .output/harvest-addon-firefox.xpi  # 使用重命名后的 .xpi 文件
           source-path: .output/harvest-addon-sources.zip  # 使用重命名后的 .xpi 文件
+          auth-api-issuer: ${{ secrets.FIREFOX_JWT_USER }}
+          auth-api-secret: ${{ secrets.FIREFOX_SECRET }}
           approval-note: |
             "scripts": {
                 "dev": "wxt",
