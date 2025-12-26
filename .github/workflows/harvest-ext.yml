@@ -147,17 +147,8 @@ jobs:
           source-path: .output/harvest-addon-sources.zip  # 使用重命名后的 .xpi 文件
           auth-api-issuer: ${{ secrets.FIREFOX_JWT_USER }}
           auth-api-secret: ${{ secrets.FIREFOX_SECRET }}
-          approval-note: |
-            "scripts": {
-                "dev": "wxt",
-                "dev:firefox": "wxt -b firefox",
-                "build": "wxt build",
-                "build:firefox": "wxt build -b firefox",
-                "zip": "wxt zip",
-                "zip:firefox": "wxt zip -b firefox",
-                "compile": "vue-tsc --noEmit",
-                "postinstall": "wxt prepare"
-            }
+          approval-note: '{"scripts": {"dev": "wxt", "dev:firefox": "wxt -b firefox", "build": "wxt build", "build:firefox": "wxt build -b firefox", "zip": "wxt zip", "zip:firefox": "wxt zip -b firefox", "compile": "vue-tsc --noEmit", "postinstall": "wxt prepare"}}'
+
 
       # 上传到 Edge 扩展商店
       - name: Upload to Microsoft Edge Add-ons
