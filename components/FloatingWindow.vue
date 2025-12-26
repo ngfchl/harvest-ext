@@ -8,6 +8,7 @@ import {
   DownloadOutlined,
   DragOutlined,
   PushpinFilled,
+  RollbackOutlined,
   SyncOutlined,
   ThunderboltOutlined,
 } from '@ant-design/icons-vue'
@@ -103,14 +104,24 @@ const onMouseUp = () => {
   // 判断停靠位置
   if (elementLeft > screenWidth / 2 - elementWidth / 2) {
     // 靠右停放
-    harvestWrap.value.style.right = `0px`;
+    harvestWrap.value.style.right = `5px`;
     harvestWrap.value.classList.add("dock-right");
   } else {
     // 靠左停放
-    harvestWrap.value!.style.left = "0px";
+    harvestWrap.value!.style.left = "5px";
     harvestWrap.value.classList.add("dock-left");
   }
 };
+
+const resetPosition = async () => {
+  if (!harvestWrap.value) return;
+  harvestWrap.value.classList.remove("dock-left", "dock-right");
+  harvestWrap.value.style.top = `240px`;
+  harvestWrap.value.style.left = `5px`;
+  harvestWrap.value.classList.add("dock-left");
+  await storage.setItem('local:topPosition', JSON.stringify(240));
+  // location.reload();
+}
 const loadLocalStorage = async () => {
   mySiteId.value = parseInt(JSON.parse(localStorage.getItem('mySite') ?? '0'));
   // 如果站点 ID 不存在，使用站点 host 去查找站点配置文件
@@ -120,7 +131,8 @@ const loadLocalStorage = async () => {
     siteInfo.value = filterSiteByHost(location.host)
     console.log('使用站点 host 查找站点信息：', siteInfo.value)
     if (!siteInfo.value) {
-      message.error('查找站点失败，未在缓存中找到站点信息')
+      console.warn('查找站点失败，未在缓存中找到站点信息')
+      // message.error()
       return;
     }
     console.log('开始从缓存中加载站点数据', mySiteId.value);
@@ -198,7 +210,7 @@ const getSiteInfo = async () => {
   if (!res?.succeed) {
     const msg = `获取站点信息出错：${res?.msg}`;
     console.warn(msg);
-    message.warning(msg, 10000);
+    // message.warning(msg, 10000);
     return null;
   }
 
@@ -991,12 +1003,12 @@ const getModalContainer = (id: string = 'modal-container') => {
     <div id="modal-container"></div>
     <div id="drawer-container"></div>
     <div class="harvest-img" style="">
-      <a-avatar :src="`${setting.baseUrl}/favicon.ico`" size="small"/>
+      <a-avatar :src="`${setting.baseUrl}favicon.ico`" size="small"/>
       <DragOutlined class="move-item" @mousedown="onMouseDown"/>
     </div>
     <a-space v-if="hover" direction="vertical" style="background-color: rgba(255,255,255,0.73)">
       <a-button
-          :href="setting.baseUrl" block danger
+          :href="setting.baseUrl" block
           size="small" style="width: 110px;"
           target="_blank" type="link"
       >
@@ -1004,6 +1016,16 @@ const getModalContainer = (id: string = 'modal-container') => {
           <ThunderboltOutlined/>
         </template>
         收割机
+      </a-button>
+      <a-button
+          block danger size="small" style="width: 110px;color: goldenrod;"
+          type="text"
+          @click="resetPosition"
+      >
+        <template #icon>
+          <rollback-outlined/>
+        </template>
+        重新定位
       </a-button>
       <a-button
           block
@@ -1244,14 +1266,13 @@ const getModalContainer = (id: string = 'modal-container') => {
 .harvest-wrap {
   position: fixed;
   top: 240px;
-  z-index: 99999;
+  z-index: 999999;
   width: 110px;
-  left: 0;
+  left: 5px;
   float: left;
   opacity: 0.7;
   font-size: 12px;
   padding-top: 2px;
-  background-color: rgba(255, 255, 255, 0);
   cursor: grab;
 }
 
@@ -1264,16 +1285,15 @@ const getModalContainer = (id: string = 'modal-container') => {
   position: absolute;
   z-index: 9999;
   top: -24px; /* 距顶部距离，可自行调 */
-  background-color: rgba(255, 255, 255, 0);
 }
 
 /* 左右停靠 */
 .dock-left .harvest-img {
-  left: 0;
+  left: 5px;
 }
 
 .dock-right .harvest-img {
-  right: 0;
+  right: 5px;
 }
 
 .ant-form {
@@ -1293,6 +1313,6 @@ const getModalContainer = (id: string = 'modal-container') => {
   left: 0;
   font-size: 20px;
   font-weight: bold;
-  color: goldenrod;
+  color: rgba(218, 165, 32, 0.13);
 }
 </style>
