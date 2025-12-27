@@ -137,33 +137,7 @@ jobs:
           echo "重命名Firefox插件"
           cp .output/harvest-addon-firefox.zip .output/harvest-addon-firefox.xpi
 
-      # 上传到 Firefox 扩展商店
-      - name: Upload to Firefox Add-ons
-        uses: browser-actions/release-firefox-addon@latest
-        with:
-          addon-id: ${{ secrets.FIREFOX_GUID }}  # 你的插件 GUID
-          addon-path: .output/harvest-addon-firefox.xpi  # 使用重命名后的 .xpi 文件
-          source-path: .output/harvest-addon-sources.zip  # 使用重命名后的 .xpi 文件
-          auth-api-issuer: ${{ secrets.FIREFOX_JWT_USER }}
-          auth-api-secret: ${{ secrets.FIREFOX_SECRET }}
-          approval-note: '{"scripts": {"dev": "wxt", "dev:firefox": "wxt -b firefox", "build": "wxt build", "build:firefox": "wxt build -b firefox", "zip": "wxt zip", "zip:firefox": "wxt zip -b firefox", "compile": "vue-tsc --noEmit", "postinstall": "wxt prepare"}}'
-          release-note: ${{ steps.changelog.outputs.changelog }}
-
-
-      # 上传到 Edge 扩展商店
-      - name: Upload to Microsoft Edge Add-ons
-        uses: web-scrobbler/edge-addon@v2.0.4
-        with:
-          product_id: ${{ secrets.EDGE_PRODUCT_ID }}
-          client_id: ${{ secrets.EDGE_CLIENT_ID }}
-          api_key: ${{ secrets.EDGE_CLIENT_SECRET }}
-          zip: .output/harvest-addon-chrome.zip  # 你打包的 Edge 插件路径
-          notes: | # 可根据发布说明自动生成
-            Edge 插件测试
-            测试地址：http://ext.ptools.fun/
-            安全 Token：zP5wIZzo
-
-      - name: 发布 Firefox 版本到 GitHub Releases
+      - name: 发布打包版本到 GitHub Releases
         uses: softprops/action-gh-release@v2  # 发布 GitHub Release
         with:
           token: ${{ secrets.TOKEN_GITHUB }}
@@ -179,3 +153,26 @@ jobs:
           body: |
             ## 📌 更新日志
             ${{ steps.changelog.outputs.changelog }}
+
+      # 上传到 Firefox 扩展商店
+      - name: Upload to Firefox Add-ons
+        uses: browser-actions/release-firefox-addon@latest
+        with:
+          addon-id: ${{ secrets.FIREFOX_GUID }}  # 你的插件 GUID
+          addon-path: .output/harvest-addon-firefox.xpi  # 使用重命名后的 .xpi 文件
+          source-path: .output/harvest-addon-sources.zip  # 使用重命名后的 .xpi 文件
+          auth-api-issuer: ${{ secrets.FIREFOX_JWT_USER }}
+          auth-api-secret: ${{ secrets.FIREFOX_SECRET }}
+          approval-note: '{"scripts": {"dev": "wxt", "dev:firefox": "wxt -b firefox", "build": "wxt build", "build:firefox": "wxt build -b firefox", "zip": "wxt zip", "zip:firefox": "wxt zip -b firefox", "compile": "vue-tsc --noEmit", "postinstall": "wxt prepare"}}'
+          release-note: ${{ steps.changelog.outputs.changelog }}
+          license: 'MIT'
+
+      # 上传到 Edge 扩展商店
+      - name: Upload to Microsoft Edge Add-ons
+        uses: web-scrobbler/edge-addon@v2.0.4
+        with:
+          product_id: ${{ secrets.EDGE_PRODUCT_ID }}
+          client_id: ${{ secrets.EDGE_CLIENT_ID }}
+          api_key: ${{ secrets.EDGE_CLIENT_SECRET }}
+          zip: .output/harvest-addon-chrome.zip  # 你打包的 Edge 插件路径
+          notes: "Edge 插件测试 \n 测试地址：http://ext.ptools.fun/ \n 安全 Token：zP5wIZzo"
