@@ -12,7 +12,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v6
         with:
           ref: master
 
@@ -130,8 +130,13 @@ jobs:
       # 打包 Firefox 插件
       - name: Zip Extension
         run: |
-          echo "打包Chrome插件"
-          pnpm run zip 
+          echo "打包Chrome插件 本地版"
+          export CHROME_STORE=false
+          pnpm wxt zip
+          cp .output/harvest-addon-chrome.zip .output/harvest-addon-chrome-local.zip
+          echo "打包Chrome插件 商店版"
+          export CHROME_STORE=true
+          pnpm wxt zip
           echo "打包Firefox插件"
           pnpm run zip:firefox
           echo "重命名Firefox插件"
@@ -143,6 +148,7 @@ jobs:
           token: ${{ secrets.TOKEN_GITHUB }}
           files: |
             .output/harvest-addon-chrome.zip
+            .output/harvest-addon-chrome-local.zip
             .output/harvest-addon-firefox.xpi
             .output/harvest-addon-firefox.zip
             .output/harvest-addon-sources.zip

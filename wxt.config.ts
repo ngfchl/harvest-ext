@@ -1,5 +1,9 @@
 import {defineConfig} from 'wxt';
+import * as fs from "node:fs";
 // See https://wxt.dev/api/config.html
+
+const enableKey = process.env.CHROME_LOCAL === 'true';
+
 export default defineConfig({
     modules: ['@wxt-dev/module-vue'],
     vite: (env) => {
@@ -10,7 +14,9 @@ export default defineConfig({
     manifest: {
         name: '收割机助手',
         description: '在收割机支持的网站上显示操作窗口',
-        // key: fs.readFileSync('key.pem', 'utf-8'),
+        ...(enableKey
+            ? {key: fs.readFileSync('key.pem', 'utf-8')}
+            : {}),
         version: '0.2.3',
         permissions: ["storage", "cookies", "activeTab", "scripting", 'contextMenus'],
         host_permissions: [
