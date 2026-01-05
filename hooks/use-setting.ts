@@ -661,6 +661,12 @@ export const useSettingStore = defineStore("setting", () => {
                 return CommonResponse.error(-1, "MTeam Cookie 信息获取失败！")
             }
             return CommonResponse.success(auth);
+        } else if (host.includes('rousi.pro')) {
+            let auth = localStorage.getItem('token');
+            if (!auth) {
+                return CommonResponse.error(-1, "Rousi Cookie 信息获取失败！")
+            }
+            return CommonResponse.success(auth);
         } else {
             const domainSplitList = host.split('.')
             if (domainSplitList.length > 2) {

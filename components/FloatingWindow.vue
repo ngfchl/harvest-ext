@@ -250,7 +250,7 @@ async function go_to_control_page() {
 
 async function getUid() {
   const node = document.evaluate(siteInfo.value.my_uid_rule, document).iterateNext();
-  console.log(node)
+  console.log('解析UID元素节点', node)
   let href = node?.textContent?.trim();
   console.log('解析 UID 链接', href)
   if (!href) {
@@ -334,7 +334,6 @@ async function download_all() {
 }
 
 const handleOk = (e: MouseEvent) => {
-  console.log(e);
   open.value = false;
 };
 
@@ -417,7 +416,7 @@ async function init_button() {
     await get_torrent_detail()
     // await sync_torrents()
     let tid = torrents.value[0].tid
-    console.log(tid)
+    console.log('当前种子Id: ', torrents.value)
     if (!tid) {
       message.warning('未获取到种子 id！')
       return
@@ -436,6 +435,7 @@ async function init_button() {
   }
 // if (location.pathname.includes(siteInfo.value.page_torrents) //尝试与配置文件中的信息绑定
   if (!(location.pathname.search(/torrents\/\D*/) > 0 ||
+      `/${siteInfo.value.page_torrents}`.startsWith(location.pathname) ||
       location.pathname.search(/t$/) > 0 ||
       location.pathname.startsWith('/browse') ||
       location.pathname.endsWith('/Torrents') ||
@@ -443,6 +443,7 @@ async function init_button() {
       location.pathname.includes('/special.php') ||
       location.pathname.includes('/live.php') ||
       location.pathname.includes('/torrents.php') ||
+      location.pathname.includes('/categories') ||
       location.pathname.includes('/browse.php'))) {
   } else {
     console.log('当前为种子列表页')
@@ -465,7 +466,7 @@ const getPasskey = () => {
     let passkey = document.evaluate(siteInfo.value.my_passkey_rule, document).iterateNext()!.textContent
     return passkey!.trim()
   } catch (e) {
-    console.error(e)
+    console.error('解析Passkey失败: ', e)
     return false
   }
 }
@@ -481,7 +482,7 @@ const getTimeJoin = () => {
         .replace('+08:00', '')
         .match(/\d{4}\D\d{2}\D\d{2}\D\d{2}\D\d{2}\D\d{2}/)![0]
   } catch (e) {
-    console.error(e)
+    console.error('解析站点注册时间失败: ', e)
     return false
   }
 }
@@ -493,7 +494,7 @@ const getUsername = () => {
     let username = document.evaluate(siteInfo.value.my_username_rule, document).iterateNext()!.textContent
     return username!.trim()
   } catch (e) {
-    console.error(e)
+    console.error('解析用户名失败: ', e)
     return false
   }
 }
@@ -549,7 +550,7 @@ const getEmail = () => {
     }
     return email
   } catch (e) {
-    console.error(e)
+    console.error('解析邮箱失败: ', e)
     return false
   }
 }
@@ -576,12 +577,12 @@ const copyCookieString = async () => {
  */
 async function getSiteData() {
 
-  console.log(siteInfo.value)
+  console.log('站点配置信息', siteInfo.value)
   if (siteInfo.value === false) {
     console.error('收割机服务器连接失败！')
     return CommonResponse.error(-1, '收割机服务器连接失败！');
   }
-  console.log(siteInfo.value.my_uid_rule)
+  console.log('站点UID：', siteInfo.value.my_uid_rule)
   //获取cookie与useragent
   let user_agent = window.navigator.userAgent
 
@@ -668,14 +669,15 @@ const torrents = ref<any>([])
  * 提取链接中的 数字 id 信息
  * @param s
  */
-const extractId = (s: string) => {
-  const regexAll = /(?:t[-\/]|[?&]id=|\/detail\/)(\d+)/;
-  return s.match(regexAll)?.[1]
-}
+const extractId = (s: string): string | undefined => {
+  const regex = /(?:t[-\/]|[?&]id=|\/detail\/|\/torrent\/)([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|\d+)/;
+  return s.match(regex)?.[1];
+};
 
 async function get_torrent_id_list() {
   torrents.value.length = 0
   let torrent_list = xpath(siteInfo.value.torrents_rule.replace("]/tr", "]/tbody/tr"), document)
+  console.log('获取到种子数量：', torrent_list)
   console.log('获取到种子数量：', torrent_list.snapshotLength)
   for (let i = 0; i <= torrent_list.snapshotLength; i++) {
     try {
@@ -814,8 +816,7 @@ async function get_torrent_detail() {
   let poster = xpath(siteInfo.value.detail_poster_rule, document).snapshotItem(0)
   let tags = xpath(siteInfo.value.detail_tags_rule, document)
   let hr = xpath(siteInfo.value.detail_hr_rule, document).snapshotItem(0)
-  let tid = location.pathname.match(/^\/detail\/(\d+)$/)?.[1] ||
-      location.search.match(/id=(\d+)/)?.[1];
+  let tid = extractId(location.href);
 
   console.log(hash_string)
   let tag = []
@@ -824,7 +825,7 @@ async function get_torrent_detail() {
   }
   let torrent = {
     tid: tid,
-    site_id: siteInfo.value.id,
+    site_id: mySiteId.value,
     title: title ? title.textContent!.trim() : '',
     subtitle: subtitle ? subtitle.textContent!.trim() : '',
     size: size ? size.textContent!.trim() : '',
@@ -942,13 +943,10 @@ const push_torrent = async (downloaderId: number, category: string, save_path: s
 const sync_torrents = async () => {
   try {
     const res = await syncTorrents(torrents.value, mySiteId.value,);
-    console.log(res);
-
+    console.log('种子信息同步结果！', res.msg);
     if (res.code === 0) {
-      console.log('种子信息同步成功！', res.msg);
       message.success('收割机 提醒您：' + res.msg)
     } else {
-      console.log(res);
       message.error(res.msg);
     }
   } catch (error) {
@@ -974,7 +972,6 @@ async function repeat(tid: number) {
     console.log(res);
 
     if (res.code !== 0) {
-      console.log(res.msg);
       message.warn(res.msg);
     } else {
       console.log('种子列表获取成功！', res);
