@@ -169,6 +169,16 @@ jobs:
             ## 📌 更新日志
             ${{ steps.changelog.outputs.changelog }}
 
+      # 上传到 Chrome 扩展商店
+      - name: Upload to Chrome Add-ons
+        uses: browser-actions/release-chrome-extension@latest
+        with:
+          extension-id: ${{ secrets.CHROME_EXT_ID }}
+          extension-path: .output/harvest-addon-chrome.zip
+          oauth-client-id: ${{ secrets.CHROME_CLIENT_ID }}
+          oauth-client-secret: ${{ secrets.CHROME_CLIENT_SECRET }}
+          oauth-refresh-token: ${{ secrets.CHROME_REFRESH_TOKEN }}
+
       # 上传到 Firefox 扩展商店
       - name: Upload to Firefox Add-ons
         uses: browser-actions/release-firefox-addon@latest
