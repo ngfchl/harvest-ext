@@ -48,7 +48,6 @@ export default defineBackground(() => {
         }).catch(() => {
             console.warn('Harvest floating not ready');
         });
-        
     })
 
     console.log('Hello background!', {id: browser.runtime.id});
@@ -133,7 +132,7 @@ export default defineBackground(() => {
                         let cookieMap = new Map();
                         cookies.forEach(cookie => {
                             if (!cookieMap.has(cookie.name)) {
-                                cookieMap.set(cookie.name, cookie.value);
+                                cookieMap.set(cookie.name, encodeURIComponent(cookie.value));
                             }
                         });
 
