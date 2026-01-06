@@ -350,7 +350,12 @@ export const useSettingStore = defineStore("setting", () => {
         const response = await getCookieString(host);
         if (response.succeed) {
             // 保存Cookie到插件存储（推荐使用chrome.storage）
-            let siteData = `user_id=${site.user_id}&site=${site.site}&cookie=${response.data}&user_agent=${window.navigator.userAgent}`
+            let siteData = {
+                user_id: site.user_id,
+                site: site.site,
+                cookie: response.data,
+                user_agent: window.navigator.userAgent
+            }
             const res = await sendSiteInfo(siteData)
             console.log(res.msg)
             showText.value = res.msg;
@@ -688,7 +693,7 @@ export const useSettingStore = defineStore("setting", () => {
      * 保存站点信息到服务器
      * @param data
      */
-    const sendSiteInfo = async (data: string) => {
+    const sendSiteInfo = async (data: Record<string, any>) => {
         const importMode: boolean = await storage.getItem('local:importMode') || false
         console.log('站点导入模式', importMode);
         return await browser.runtime.sendMessage({

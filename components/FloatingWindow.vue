@@ -347,10 +347,10 @@ async function download_free() {
 
 /**
  * 发送站点信息到服务器
- * @param {string} data - 要发送的数据，格式为 URL-encoded 字符串
+ * @param data - 要发送的数据，格式为 URL-encoded 字符串
  * @returns
  */
-async function doSendSiteInfo(data: string) {
+async function doSendSiteInfo(data: Record<string, any>) {
   try {
     const res = await sendSiteInfo(data)
     console.log('站点信息获取结果', res);
@@ -578,14 +578,12 @@ const copyCookieString = async () => {
 async function getSiteData() {
 
   console.log('站点配置信息', siteInfo.value)
+
   if (siteInfo.value === false) {
     console.error('收割机服务器连接失败！')
     return CommonResponse.error(-1, '收割机服务器连接失败！');
   }
   console.log('站点UID：', siteInfo.value.my_uid_rule)
-  //获取cookie与useragent
-  let user_agent = window.navigator.userAgent
-
 
   //获取UID
   let UserIdRes = await getUid()
@@ -608,35 +606,44 @@ async function getSiteData() {
     cookie.value = cookieResponse.data
   }
 
-  let siteData = `user_id=${myUid.value}&site=${siteInfo.value.name}&cookie=${cookie.value}&user_agent=${user_agent}`
-  /* 处理馒头域名结束 */
+  const siteData: Record<string, any> = {
+    user_id: myUid.value,
+    site: siteInfo.value.name,
+    cookie: cookie.value,
+    user_agent: window.navigator.userAgent,
+  };
 
   if (mySiteId.value != 0) {
-    siteData += `&id=${mySiteId.value}`
+    siteData.id = mySiteId.value;
   }
   if (mySiteId.value == 0) {
-    siteData += `&nickname=${siteInfo.value.name}&mirror=${host}&tags=${siteInfo.value.tags.split(',')}`
+    // siteData += `&nickname=${siteInfo.value.name}&mirror=${host}&tags=${siteInfo.value.tags.split(',')}`
+    siteData.nickname = siteInfo.value.name;
+    siteData.mirror = host;
+    siteData.tags = siteInfo.value.tags.split(','); // string[]
   }
   let passkey = getPasskey()
   console.log("passkey抓取结果：", passkey)
   if (passkey != false) {
-    siteData += `&passkey=${passkey}`
+    siteData.passkey = passkey;
   }
   let time_join = getTimeJoin()
   console.log("注册时间抓取结果：", time_join)
   if (time_join != false) {
-    siteData += `&time_join=${time_join}`
+    siteData.time_join = time_join;
   }
   let username = getUsername()
   console.log("用户名抓取结果：", username)
   if (username != false) {
-    siteData += `&username=${username}`
+    siteData.username = username;
   }
   let email = getEmail()
   console.log("注册邮箱抓取结果：", email)
   if (email != false) {
-    siteData += `&email=${email}`
+    siteData.email = email;
   }
+
+  console.log('最终站点数据:', siteData);
   return CommonResponse.success(siteData)
 }
 

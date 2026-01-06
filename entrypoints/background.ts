@@ -302,15 +302,15 @@ const searchMultiSiteApi = async (params: {
  */
 async function sendSiteInfoApi(params: {
     setting: Settings,
-    data: string,
+    data: Record<string, any>,
     importMode: boolean,
 }, sender: Browser.runtime.MessageSender) {
     const response = await fetchApi({
-        ...params,
+        setting: params.setting,
         path: "api/auth/monkey/save_site",
         method: "POST",
-        body: params.data, // 传递原始字符串数据
-        contentType: "application/x-www-form-urlencoded",
+        body: JSON.stringify(params.data),
+        contentType: "application/json",
     });
     console.log(`站点添加结果：${params.importMode} == ${response.succeed}`);
     if (response.succeed && params.importMode && sender.tab?.id) {
