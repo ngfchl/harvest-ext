@@ -132,7 +132,7 @@ export default defineBackground(() => {
                         let cookieMap = new Map();
                         cookies.forEach(cookie => {
                             if (!cookieMap.has(cookie.name)) {
-                                cookieMap.set(cookie.name, encodeURIComponent(cookie.value));
+                                cookieMap.set(cookie.name, cookie.value);
                             }
                         });
 
