@@ -429,23 +429,24 @@ async function init_button() {
     });
     return;
   }
-  console.log('当前为种子列表页检测：', location.pathname, "====>", `/${siteInfo.value.page_torrents}`, `/${siteInfo.value.page_torrents}`.startsWith(location.pathname))
+  console.log('当前为种子列表页检测：', location.pathname, "====>", `/${siteInfo.value.page_torrents}`, siteInfo.value.page_torrents.startsWith(location.pathname.slice(1)))
 
   if (location.pathname.endsWith(`/${siteInfo.value.page_torrents.replace('{}', '')}`)) {
 
   }
 // if (location.pathname.includes(siteInfo.value.page_torrents) //尝试与配置文件中的信息绑定
-  if (!(location.pathname.search(/torrents\/\D*/) > 0 ||
-      `/${siteInfo.value.page_torrents}`.startsWith(location.pathname) ||
-      location.pathname.search(/t$/) > 0 ||
-      location.pathname.startsWith('/browse') ||
-      location.pathname.endsWith('/Torrents') ||
-      location.pathname.includes('/music.php') ||
-      location.pathname.includes('/special.php') ||
-      location.pathname.includes('/live.php') ||
-      location.pathname.includes('/torrents.php') ||
-      location.pathname.includes('/categories') ||
-      location.pathname.includes('/browse.php'))) {
+  if (
+      !(location.pathname.search(/torrents\/\D*/) > 0 ||
+          siteInfo.value.page_torrents.startsWith(location.pathname.slice(1)) ||
+          location.pathname.search(/t$/) > 0 ||
+          location.pathname.startsWith('/browse') ||
+          location.pathname.endsWith('/Torrents') ||
+          location.pathname.includes('/music.php') ||
+          location.pathname.includes('/special.php') ||
+          location.pathname.includes('/live.php') ||
+          location.pathname.includes('/torrents.php') ||
+          location.pathname.includes('/categories') ||
+          location.pathname.includes('/browse.php'))) {
   } else {
     console.log('当前为种子列表页')
     torrent_list_page.value = true
