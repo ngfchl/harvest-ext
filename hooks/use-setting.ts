@@ -17,7 +17,8 @@ import {message} from "ant-design-vue";
 export const useSettingStore = defineStore("setting", () => {
     const setting = ref<Settings>({
         baseUrl: 'http://127.0.0.1:8000', token: '',
-        // imgUrl: 'https://api.r10086.com/%E6%A8%B1%E9%81%93%E9%9A%8F%E6%9C%BA%E5%9B%BE%E7%89%87api%E6%8E%A5%E5%8F%A3.php?%E5%9B%BE%E7%89%87%E7%B3%BB%E5%88%97=%E5%B0%91%E5%A5%B3%E5%86%99%E7%9C%9F5'
+        imgSize: 81,
+        imgUrl: 'https://api.mtyqx.cn/xjjapi/random.php',
     })
     const canSave = ref(false);
     const downloaders = ref<Downloader[]>()

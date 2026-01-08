@@ -740,19 +740,26 @@ const loginServer = async () => {
                 label="Token"
                 placeholder="安全Token"
             />
+            <div class="icon-wrapper">
+              <a-avatar :fallback="`${setting.baseUrl}favicon.ico`"
+                        :size="setting.imgSize"
+                        :src="`${setting.imgUrl ? setting.imgUrl : `${setting.baseUrl}favicon.ico`}`"
+              />
+              <a-slider v-model:value="setting.imgSize" :max="100" :min="36" @after-change="saveSetting"/>
 
-            <!--            <a-input-->
-            <!--                v-model:value.lazy="setting.imgUrl"-->
-            <!--                autofocus-->
-            <!--                label="图片地址"-->
-            <!--                placeholder="图片地址"-->
-            <!--                style="width: 100%"-->
-            <!--            />-->
+            </div>
+            <a-input
+                v-model:value.lazy="setting.imgUrl"
+                autofocus
+                label="图片地址"
+                placeholder="图片地址"
+                style="width: 100%"
+            />
             <a-popover title="更新服务器信息">
               <template #content>
                 <p style="max-width: 200px;">
                   这里可以更新收割机服务器地址和认证 Token 信息，并且可以修改站点页面悬浮窗口显示的图片 API，可以是随机图片
-                  API，也可以是指定图片 URL 地址
+                  API，也可以是指定图片 URL 地址，修改图片大小无需点击更新
                 </p>
               </template>
               <a-popconfirm

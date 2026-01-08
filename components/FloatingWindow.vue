@@ -29,6 +29,7 @@ const {
   filterMySiteBySiteName,
   filterSiteById,
   sendSiteInfo,
+  saveSetting,
   getCookieString,
   testDownloader,
   getDownloaderCategorise,
@@ -1006,11 +1007,16 @@ const getModalContainer = (id: string = 'modal-container') => {
     <div id="message-container"></div>
     <div id="modal-container"></div>
     <div id="drawer-container"></div>
-    <div class="harvest-img" style="">
-      <a-avatar :src="`${setting.baseUrl}favicon.ico`" size="small"/>
+    <div class="harvest-img" style="margin: auto;text-align: center;">
+      <a-avatar :fallback="`${setting.baseUrl}favicon.ico`" :size="setting.imgSize"
+                :src="`${setting.imgUrl ? setting.imgUrl : `${setting.baseUrl}favicon.ico`}`"
+      />
       <DragOutlined class="move-item" @mousedown="onMouseDown"/>
     </div>
-    <a-space v-if="hover" direction="vertical" style="background-color: rgba(255,255,255,0.73)">
+    <a-space v-if="hover" :style="{
+      marginTop: `${setting.imgSize / 1.5}px`
+    }" direction="vertical" style="background-color: rgba(255,255,255,0.73);">
+      <a-slider v-model:value="setting.imgSize" :max="100" :min="36" @after-change="saveSetting"/>
       <a-button
           :href="setting.baseUrl" block
           size="small" style="width: 110px;"
@@ -1289,6 +1295,7 @@ const getModalContainer = (id: string = 'modal-container') => {
   position: absolute;
   z-index: 9999;
   top: -24px; /* 距顶部距离，可自行调 */
+  width: 110px;
 }
 
 /* 左右停靠 */
