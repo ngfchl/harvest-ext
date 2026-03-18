@@ -543,7 +543,7 @@ const loginServer = async () => {
             </a-button>
 
           </a-space>
-          <a-space v-if="canSave" direction="vertical">
+          <a-space v-if="canSave" direction="vertical" style="padding-left: 12px;padding-right: 12px;">
             <a-popover title="一键打开站点列表">
               <template #content>
                 <div style="max-width: 200px;">
@@ -1042,7 +1042,8 @@ const loginServer = async () => {
                   ).sort((a, b) => a.url.length - b.url.length )"
                   :lg="8" :md="12"
                   :sm="24"
-                  :xl="6">
+                  :xl="6"
+                  style="width: 100%;">
                 <a-badge-ribbon :color="site.alive ? 'green' : 'red'" :placement="site.alive? 'start' : 'end'"
                                 :text="site.alive ?'':'站点已禁用'">
                   <a-card hoverable size="small" style="width: 100% !important;min-width: 300px;">
