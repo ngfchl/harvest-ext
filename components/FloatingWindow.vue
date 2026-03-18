@@ -169,9 +169,11 @@ onMounted(async () => {
   await nextTick(async () => {
     // 在 DOM 元素渲染完成后执行的代码
     // 可以在这里操作已经渲染的 DOM 元素或执行其他需要在 DOM 渲染完成后执行的逻辑
-    console.log('页面加载完成');
-    await getUid()
-    await init_button()
+    setTimeout(async () => {
+      console.log('等待页面加载完成');
+      await getUid()
+      await init_button()
+    }, 2000)
   });
 });
 
@@ -371,6 +373,7 @@ async function init_button() {
   /**
    * 初始化页面按钮
    */
+
   console.log('开始初始化按钮，当前页面地址：', location.href)
   let url = new URL(location.href)
   let configUserDetailPage = `/${siteInfo.value.page_user.replace('{}', myUid.value)}`;
