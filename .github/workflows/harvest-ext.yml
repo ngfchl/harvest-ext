@@ -1,203 +1,242 @@
-name: Deploy Browser Extensions
+name: Deploy Browser Extensions (Fixed Paths)
 
 on:
   push:
     tags:
-      - '*'  # 匹配所有 tag，例如 v1.0.0
+      - '*'
   workflow_dispatch:
 
 jobs:
-  build_and_deploy:
+  # ================= 1. 构建任务 =================
+  build:
+    name: Build & Prepare Assets
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
         with:
-          ref: master
+          fetch-depth: 0
 
-      - name: 生成发行版变更日志
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # --- 生成变更日志 ---
+      - name: Generate Changelog
         id: changelog
         shell: bash
         run: |
           CURRENT_TAG=${GITHUB_REF#refs/tags/}
           PREV_TAG=$(git describe --tags --abbrev=0 ${CURRENT_TAG}^ 2>/dev/null || echo "")
-
-          echo "当前 TAG: $CURRENT_TAG"
-          echo "上一个 TAG: $PREV_TAG"
-
-          if [ -z "$PREV_TAG" ]; then
-            RANGE=""
-          else
-            RANGE="$PREV_TAG..$CURRENT_TAG"
-          fi
-
-          # 获取原始 git log（排除 chore 和 merge）
+          if [ -z "$PREV_TAG" ] || [ -z "$CURRENT_TAG" ]; then RANGE="HEAD~10..HEAD"; else RANGE="$PREV_TAG..$CURRENT_TAG"; fi
+          
           RAW_LOG=$(git log $RANGE --pretty=format:"%H|%s" --no-merges | grep -v -E '^.*\|(chore|chore:)' || true)
-
-          # 分类存储
-          FEAT=""
-          FIX=""
-          DOCS=""
-          REFACTOR=""
-          PERF=""
-          TEST=""
-          UPDATE=""
-          OTHER=""
-
+          FEAT="" FIX="" DOCS="" REFACTOR="" PERF="" TEST="" UPDATE="" OTHER=""
+          
           while IFS='|' read -r HASH MSG; do
             [ -z "$HASH" ] && continue
-
-            # 如果是 GitHub PR merge 提交，跳过（已被上方 --no-merges 排除）
-            # 查询 PR 标题（如果 commit 提到 #PR_NUMBER）
             PR_TITLE=""
             if [[ "$MSG" =~ \#([0-9]+) ]]; then
               PR_NUM="${BASH_REMATCH[1]}"
               PR_TITLE=$(gh pr view "$PR_NUM" --json title --jq '.title' 2>/dev/null || echo "")
             fi
-
             DISPLAY_MSG="$MSG"
-            if [ -n "$PR_TITLE" ]; then
-              DISPLAY_MSG="$PR_TITLE (#$PR_NUM)"
-            fi
-
-            # 清洗危险字符（防止 GitHub Actions / Shell / API 出问题）
+            [ -n "$PR_TITLE" ] && DISPLAY_MSG="$PR_TITLE (#$PR_NUM)"
             DISPLAY_MSG="${DISPLAY_MSG//\"/}"
-            DISPLAY_MSG="$(printf '%s' "$DISPLAY_MSG")"
-
             SHORT_HASH=$(echo "$HASH" | cut -c1-7)
-
-            if [[ "$MSG" =~ ^feat ]]; then
-                FEAT+="\n- ${DISPLAY_MSG} (${SHORT_HASH})"
-            elif [[ "$MSG" =~ ^fix ]]; then
-                FIX+="\n- ${DISPLAY_MSG} (${SHORT_HASH})"
-            elif [[ "$MSG" =~ ^docs ]]; then
-                DOCS+="\n- ${DISPLAY_MSG} (${SHORT_HASH})"
-            elif [[ "$MSG" =~ ^refactor ]]; then
-                REFACTOR+="\n- ${DISPLAY_MSG} (${SHORT_HASH})"
-            elif [[ "$MSG" =~ ^perf ]]; then
-                PERF+="\n- ${DISPLAY_MSG} (${SHORT_HASH})"
-            elif [[ "$MSG" =~ ^test ]]; then
-                TEST+="\n- ${DISPLAY_MSG} (${SHORT_HASH})"
-            elif [[ "$MSG" =~ ^update ]]; then
-                UPDATE+="\n- ${DISPLAY_MSG} (${SHORT_HASH})"
-            else
-                OTHER+="\n- ${DISPLAY_MSG} (${SHORT_HASH})"
-            fi
+          
+            case "$MSG" in
+              feat*) FEAT+="\n- ${DISPLAY_MSG} (${SHORT_HASH})" ;;
+              fix*) FIX+="\n- ${DISPLAY_MSG} (${SHORT_HASH})" ;;
+              docs*) DOCS+="\n- ${DISPLAY_MSG} (${SHORT_HASH})" ;;
+              refactor*) REFACTOR+="\n- ${DISPLAY_MSG} (${SHORT_HASH})" ;;
+              perf*) PERF+="\n- ${DISPLAY_MSG} (${SHORT_HASH})" ;;
+              test*) TEST+="\n- ${DISPLAY_MSG} (${SHORT_HASH})" ;;
+              update*) UPDATE+="\n- ${DISPLAY_MSG} (${SHORT_HASH})" ;;
+              *) OTHER+="\n- ${DISPLAY_MSG} (${SHORT_HASH})" ;;
+            esac
           done <<< "$RAW_LOG"
 
-          # 组合中文日志
           FINAL_LOG=""
+          [ -n "$FEAT" ] && FINAL_LOG+="\n### ✨ 新增功能\n${FEAT}\n"
+          [ -n "$FIX" ] && FINAL_LOG+="\n### 🐛 修复问题\n${FIX}\n"
+          [ -n "$DOCS" ] && FINAL_LOG+="\n### 📖 文档更新\n${DOCS}\n"
+          [ -n "$REFACTOR" ] && FINAL_LOG+="\n### 🔨 重构\n${REFACTOR}\n"
+          [ -n "$PERF" ] && FINAL_LOG+="\n### ⚡ 性能优化\n${PERF}\n"
+          [ -n "$TEST" ] && FINAL_LOG+="\n### 🧪 测试相关\n${TEST}\n"
+          [ -n "$UPDATE" ] && FINAL_LOG+="\n### 🔄 更新\n${UPDATE}\n"
+          [ -n "$OTHER" ] && FINAL_LOG+="\n### 📌 其他变更\n${OTHER}\n"
+          [ -z "$FINAL_LOG" ] && FINAL_LOG="No significant changes."
 
-          if [ -n "$FEAT" ]; then
-            FINAL_LOG+="\n### ✨ 新增功能\n${FEAT}\n"
-          fi
-          if [ -n "$FIX" ]; then
-            FINAL_LOG+="\n### 🐛 修复问题\n${FIX}\n"
-          fi
-          if [ -n "$DOCS" ]; then
-            FINAL_LOG+="\n### 📖 文档更新\n${DOCS}\n"
-          fi
-          if [ -n "$REFACTOR" ]; then
-            FINAL_LOG+="\n### 🔨 重构\n${REFACTOR}\n"
-          fi
-          if [ -n "$PERF" ]; then
-            FINAL_LOG+="\n### ⚡ 性能优化\n${PERF}\n"
-          fi
-          if [ -n "$TEST" ]; then
-            FINAL_LOG+="\n### 🧪 测试相关\n${TEST}\n"
-          fi
-          if [ -n "$UPDATE" ]; then
-            FINAL_LOG+="\n### 🔄 更新\n${UPDATE}\n"
-          fi
-          if [ -n "$OTHER" ]; then
-            FINAL_LOG+="\n### 📌 其他变更\n${OTHER}\n"
-          fi
+          echo -e "$FINAL_LOG" > CHANGELOG.md
 
-          # 回写到 GitHub 输出
-          echo "changelog<<EOF" >> $GITHUB_OUTPUT
-          echo -e "$FINAL_LOG" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: 设置 pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
-
-      - name: 安装依赖
-        run: pnpm install --frozen-lockfile
-
-      # 打包 Firefox 插件
-      - name: 打包Chrome插件 本地版
+      # --- 执行打包 (生成到 .output) ---
+      - name: Build Extensions
         run: |
-          echo "打包Chrome插件 本地版"
+          # Chrome Local
           export CHROME_STORE=false
           pnpm wxt zip
           cp .output/harvest-addon-chrome.zip .output/harvest-addon-chrome-local.zip
-          ls -l .output
-
-      - name: 打包Chrome插件 商店版
-        run: |
-          echo "打包Chrome插件 商店版"
+          
+          # Chrome Store
           export CHROME_STORE=true
           pnpm wxt zip
-          ls -l .output
-
-      - name: 打包Firefox插件 商店版
-        run: |
-          echo "打包Firefox插件"
+          
+          # Firefox
           pnpm run zip:firefox
-          echo "重命名Firefox插件"
           cp .output/harvest-addon-firefox.zip .output/harvest-addon-firefox.xpi
-          ls -l .output
+          
+          # Sources (兜底)
+          if [ ! -f .output/harvest-addon-sources.zip ]; then
+            zip -j .output/harvest-addon-sources.zip CHANGELOG.md
+          fi
 
-      - name: 发布打包版本到 GitHub Releases
-        uses: softprops/action-gh-release@v2  # 发布 GitHub Release
+      # --- 【关键步骤】整理文件到扁平目录 ---
+      # 解决 download-artifact v3 路径错乱问题的核心
+      - name: Prepare Release Assets
+        run: |
+          mkdir -p release-assets
+          # 将 .output 中的文件复制到 release-assets 根目录，去除子目录结构
+          cp .output/harvest-addon-chrome.zip release-assets/
+          cp .output/harvest-addon-chrome-local.zip release-assets/
+          cp .output/harvest-addon-firefox.xpi release-assets/
+          cp .output/harvest-addon-firefox.zip release-assets/
+          cp .output/harvest-addon-sources.zip release-assets/
+          cp CHANGELOG.md release-assets/
+          
+          echo "Files in release-assets:"
+          ls -l release-assets/
+
+      # --- 上传制品 ---
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts-${{ github.run_id }}
+          path: release-assets/*  # 只上传扁平目录下的文件
+          retention-days: 1
+
+  # ================= 2. 发布到 GitHub Release =================
+  release-github:
+    name: Publish to GitHub
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: build-artifacts-${{ github.run_id }}
+          path: ./dist
+          # v3 下载多文件时，会直接平铺在 ./dist 下
+
+      - name: Verify Files
+        run: ls -l ./dist
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
         with:
           token: ${{ secrets.TOKEN_GITHUB }}
           files: |
-            .output/harvest-addon-chrome.zip
-            .output/harvest-addon-chrome-local.zip
-            .output/harvest-addon-firefox.xpi
-            .output/harvest-addon-firefox.zip
-            .output/harvest-addon-sources.zip
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || github.sha }}  # 使用 tag 或提交哈希命名
+            ./dist/harvest-addon-chrome.zip
+            ./dist/harvest-addon-chrome-local.zip
+            ./dist/harvest-addon-firefox.xpi
+            ./dist/harvest-addon-firefox.zip
+            ./dist/harvest-addon-sources.zip
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || github.sha }}
           name: Release ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || github.sha }}
-          draft: ${{ startsWith(github.ref, 'refs/tags/') == false }}  # 如果不是 tag，作为草稿
-          prerelease: false  # 不标记为预发布版本
-          body: |
-            ## 📌 更新日志
-            ${{ steps.changelog.outputs.changelog }}
+          draft: ${{ startsWith(github.ref, 'refs/tags/') == false }}
+          body_path: ./dist/CHANGELOG.md
 
-      # 上传到 Chrome 扩展商店
+  # ================= 3. 发布到 Chrome =================
+  publish-chrome:
+    name: Publish to Chrome Store
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+
+    steps:
+      - name: Download Artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: build-artifacts-${{ github.run_id }}
+          path: ./dist
+
+      - name: Verify Files
+        run: |
+          echo "Checking files in ./dist:"
+          ls -l ./dist
+          if [ ! -f ./dist/harvest-addon-chrome.zip ]; then
+            echo "ERROR: File not found!"
+            exit 1
+          fi
+
       - name: Upload to Chrome Add-ons
         uses: browser-actions/release-chrome-extension@latest
         with:
           extension-id: ${{ secrets.CHROME_EXT_ID }}
-          extension-path: .output/harvest-addon-chrome.zip
+          extension-path: ./dist/harvest-addon-chrome.zip
           oauth-client-id: ${{ secrets.CHROME_CLIENT_ID }}
           oauth-client-secret: ${{ secrets.CHROME_CLIENT_SECRET }}
           oauth-refresh-token: ${{ secrets.CHROME_REFRESH_TOKEN }}
 
-      # 上传到 Firefox 扩展商店
+  # ================= 4. 发布到 Firefox =================
+  publish-firefox:
+    name: Publish to Firefox Add-ons
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+
+    steps:
+      - name: Download Artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: build-artifacts-${{ github.run_id }}
+          path: ./dist
+
+      - name: Read Changelog
+        id: read_log
+        run: |
+          CONTENT=$(cat ./dist/CHANGELOG.md | tr '\n' ' ' | sed 's/"/\\"/g')
+          echo "body=$CONTENT" >> $GITHUB_OUTPUT
+
       - name: Upload to Firefox Add-ons
         uses: browser-actions/release-firefox-addon@latest
         with:
-          addon-id: ${{ secrets.FIREFOX_GUID }}  # 你的插件 GUID
-          addon-path: .output/harvest-addon-firefox.xpi  # 使用重命名后的 .xpi 文件
-          source-path: .output/harvest-addon-sources.zip  # 使用重命名后的 .xpi 文件
+          addon-id: ${{ secrets.FIREFOX_GUID }}
+          addon-path: ./dist/harvest-addon-firefox.xpi
+          source-path: ./dist/harvest-addon-sources.zip
           auth-api-issuer: ${{ secrets.FIREFOX_JWT_USER }}
           auth-api-secret: ${{ secrets.FIREFOX_SECRET }}
-          approval-note: '{"scripts": {"dev": "wxt", "dev:firefox": "wxt -b firefox", "build": "wxt build", "build:firefox": "wxt build -b firefox", "zip": "wxt zip", "zip:firefox": "wxt zip -b firefox", "compile": "vue-tsc --noEmit", "postinstall": "wxt prepare"}}'
-          release-note: ${{ steps.changelog.outputs.changelog }}
+          approval-note: '{"scripts": {"dev": "wxt", "zip": "wxt zip"}}'
+          release-note: ${{ steps.read_log.outputs.body }}
           license: 'MIT'
 
-      # 上传到 Edge 扩展商店
+  # ================= 5. 发布到 Edge =================
+  publish-edge:
+    name: Publish to Edge Add-ons
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+
+    steps:
+      - name: Download Artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: build-artifacts-${{ github.run_id }}
+          path: ./dist
+
+      - name: Verify Files
+        run: ls -l ./dist
+
       - name: Upload to Microsoft Edge Add-ons
         uses: web-scrobbler/edge-addon@v2.0.4
         with:
           product_id: ${{ secrets.EDGE_PRODUCT_ID }}
           client_id: ${{ secrets.EDGE_CLIENT_ID }}
           api_key: ${{ secrets.EDGE_CLIENT_SECRET }}
-          zip: .output/harvest-addon-chrome.zip  # 你打包的 Edge 插件路径
+          zip: ./dist/harvest-addon-chrome.zip
           notes: "Edge 插件测试 \n 测试地址：http://ext.ptools.fun/ \n 安全 Token：zP5wIZzo"
