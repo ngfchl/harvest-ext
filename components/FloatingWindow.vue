@@ -7,10 +7,13 @@ import {
   CopyOutlined,
   DownloadOutlined,
   DragOutlined,
+  EyeOutlined,
+  LockOutlined,
   PushpinFilled,
   RollbackOutlined,
   SyncOutlined,
   ThunderboltOutlined,
+  UnlockOutlined,
 } from '@ant-design/icons-vue'
 import {useSettingStore} from "@/hooks/use-setting";
 import {storeToRefs} from "pinia";
@@ -50,6 +53,7 @@ message.config({
   top: `50px`,
 });
 const activeKey = ref<number>();
+const current_site_page = ref<SitePageType>(null)
 const user_detail_page = ref(false)
 const torrent_list_page = ref(false)
 const torrent_detail_page = ref(false)
@@ -61,6 +65,11 @@ const cookie = ref<string>('')
 const url_list = ref<string[]>([])
 const modal_title = ref<string>('下载到')
 const singleTorrent = ref<Torrent>()
+const siteDataModalVisible = ref(false)
+const siteDataLoading = ref(false)
+const siteDataEncrypted = ref(false)
+const siteDataSyncLoading = ref(false)
+const siteDataPreview = ref<Record<string, any>>({})
 const mySiteId = ref<number>(0)
 const topPosition = ref<number>(0)
 const myUid = ref<string>('')
@@ -147,7 +156,6 @@ onMounted(async () => {
   // 从本地存储加载站点信息
   await loadLocalStorage();
 
-  // localStorage.setItem('website', JSON.stringify(siteInfo.value));
   // await getSiteInfo()
   // 在 Shadow DOM 中添加事件监听器
   document.addEventListener("mousemove", onMouseMove);
@@ -210,7 +218,6 @@ const getSiteInfo = async () => {
   mySiteId.value = res.data?.mysite ?? 0;
   siteInfo.value = res?.data?.website;
   localStorage.setItem('website', JSON.stringify(res.data?.website));
-
 }
 
 /**
@@ -357,19 +364,145 @@ async function doSendSiteInfo(data: Record<string, any>) {
   }
 }
 
+type PageConfig = string | string[] | null | undefined;
+type SitePageType =
+    | 'index'
+    | 'torrents'
+    | 'sign_in'
+    | 'control_panel'
+    | 'detail'
+    | 'user'
+    | 'search'
+    | 'message'
+    | 'hr'
+    | 'mybonus'
+    | null
+
+const sitePageLabels: Record<Exclude<SitePageType, null>, string> = {
+  index: '主页',
+  torrents: '种子列表页',
+  sign_in: '签到页',
+  control_panel: '控制面板页',
+  detail: '种子详情页',
+  user: '用户个人主页',
+  search: '搜索页',
+  message: '消息页面',
+  hr: 'HR 页面',
+  mybonus: '魔力页面',
+}
+
+const toPageConfigList = (config: PageConfig): string[] => {
+  if (Array.isArray(config)) {
+    return config.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+  }
+  return typeof config === 'string' && config.trim().length > 0 ? [config] : []
+}
+
+const stripTrailingSlash = (path: string) => {
+  const suffixIndex = path.search(/[?#]/)
+  const basePath = suffixIndex >= 0 ? path.slice(0, suffixIndex) : path
+  const suffix = suffixIndex >= 0 ? path.slice(suffixIndex) : ''
+  if (basePath === '/') {
+    return `${basePath}${suffix}`
+  }
+  return `${basePath.replace(/\/$/, '')}${suffix}`
+}
+
+const normalizePagePath = (path: string) => {
+  let normalized = path.trim().replace(/^https?:\/\/[^/]+/i, '')
+  normalized = normalized.split('#')[0]
+  if (!normalized.startsWith('/')) {
+    normalized = `/${normalized}`
+  }
+  return stripTrailingSlash(normalized)
+}
+
+const splitPagePath = (path: string) => {
+  const queryIndex = path.indexOf('?')
+  return {
+    pathname: stripTrailingSlash(queryIndex >= 0 ? path.slice(0, queryIndex) : path),
+    search: queryIndex >= 0 ? path.slice(queryIndex) : '',
+  }
+}
+
+const hasMeaningfulSearch = (path: string) => {
+  const {search} = splitPagePath(path)
+  return search.length > 1
+}
+
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+const getCurrentPagePath = () => stripTrailingSlash(`${location.pathname}${location.search}`)
+
+const pagePathMatches = (config: PageConfig) => {
+  const currentPath = getCurrentPagePath()
+  const currentPathname = stripTrailingSlash(location.pathname)
+
+  return toPageConfigList(config).some((item) => {
+    const normalizedConfig = normalizePagePath(item)
+    const {pathname: configPathname} = splitPagePath(normalizedConfig)
+    const shouldMatchSearch = hasMeaningfulSearch(normalizedConfig)
+
+    if (item.includes('{}')) {
+      if (myUid.value) {
+        const uidConfig = normalizePagePath(item.replaceAll('{}', myUid.value))
+        if (hasMeaningfulSearch(uidConfig) ? currentPath === uidConfig : currentPathname === splitPagePath(uidConfig).pathname) {
+          return true
+        }
+      }
+
+      const target = shouldMatchSearch ? currentPath : currentPathname
+      const regexConfig = shouldMatchSearch ? normalizedConfig : configPathname
+      const regexSource = regexConfig.split('{}').map(escapeRegExp).join('[^/?&#]+')
+      return new RegExp(`^${regexSource}$`).test(target)
+    }
+
+    if (shouldMatchSearch) {
+      return currentPath === normalizedConfig || currentPathname === configPathname
+    }
+    return currentPathname === configPathname
+  })
+}
+
+const detectCurrentSitePage = (): SitePageType => {
+  const pageControlPanel = siteInfo.value.page_control_panel ?? siteInfo.value.page_control
+  const pageRules: Array<{ type: Exclude<SitePageType, null>, config: PageConfig }> = [
+    {type: 'detail', config: siteInfo.value.page_detail},
+    {type: 'user', config: siteInfo.value.page_user},
+    {type: 'control_panel', config: pageControlPanel},
+    {type: 'search', config: siteInfo.value.page_search},
+    {type: 'torrents', config: siteInfo.value.page_torrents},
+    {type: 'sign_in', config: siteInfo.value.page_sign_in},
+    {type: 'message', config: siteInfo.value.page_message},
+    {type: 'hr', config: siteInfo.value.page_hr},
+    {type: 'mybonus', config: siteInfo.value.page_mybonus},
+    {type: 'index', config: siteInfo.value.page_index},
+  ]
+
+  return pageRules.find(({config}) => pagePathMatches(config))?.type ?? null
+}
+
 async function init_button() {
   /**
    * 初始化页面按钮
    */
 
   console.log('开始初始化按钮，当前页面地址：', location.href)
-  let url = new URL(location.href)
-  let configUserDetailPage = `/${siteInfo.value.page_user.replace('{}', myUid.value)}`;
-  user_detail_page.value = location.pathname != '/' && (location.href.endsWith(`/${siteInfo.value.page_user.replace('{}', myUid.value)}`)
-      || (`/${siteInfo.value.page_user}`.startsWith(location.pathname) && url.searchParams.size == 0 && !location.href.includes(myUid.value)))
-  console.log('当前为个人信息页检测', location.href, "====>", configUserDetailPage, user_detail_page.value)
-  if (user_detail_page.value) {
-    console.log('当前为个人信息页')
+  if (!siteInfo.value) {
+    console.warn('站点信息未初始化，跳过按钮初始化')
+    return;
+  }
+
+  user_detail_page.value = false
+  torrent_list_page.value = false
+  torrent_detail_page.value = false
+
+  current_site_page.value = detectCurrentSitePage()
+  console.log('当前站点页面识别结果：', getCurrentPagePath(), current_site_page.value ? sitePageLabels[current_site_page.value] : '未知页面')
+
+  if (current_site_page.value === 'user') {
+    user_detail_page.value = true
+    console.log('当前为用户个人主页')
     await nextTick(async () => {
       // 可以在这里操作已经渲染的 DOM 元素或执行其他需要在 DOM 渲染完成后执行的逻辑
       console.log('DOM 已更新');
@@ -378,31 +511,18 @@ async function init_button() {
     return;
   }
 
-  console.log('当前为控制面板页检测', location.href, "====>", siteInfo.value.page_control_panel,
-      location.href.startsWith(siteInfo.value.page_control_panel),
-      (location.pathname.search(/usercp.php/) > 0 && !location.href.includes('?'))
-  )
-  user_detail_page.value = location.pathname != '/' && (location.href.replace(`${location.origin}/`, '').startsWith(siteInfo.value.page_control_panel) ||
-      (siteInfo.value.page_control_panel.includes('{}') && siteInfo.value.page_control_panel.replace('{}', myUid.value)) ||
-      (location.pathname.search(/usercp.php/) > 0 && !location.href.includes('?')))
-  console.log('控制面板页面检测结果：', user_detail_page.value);
-  if (user_detail_page.value) {
+  if (current_site_page.value === 'control_panel') {
+    user_detail_page.value = true
     console.log('当前为控制面板页')
     await nextTick(async () => {
       // 可以在这里操作已经渲染的 DOM 元素或执行其他需要在 DOM 渲染完成后执行的逻辑
       console.log('DOM 已更新');
       await syncCookie()
     });
+    return;
   }
-// if (location.pathname.includes(siteInfo.value.page_detail) //尝试与配置文件中的信息绑定
-  if (location.pathname.startsWith('/details.php')
-      || location.pathname.includes('/torrent.php')
-      || location.pathname.includes('/views.php')
-      || location.pathname.includes('/Torrents/details')
-      || location.pathname.search(/torrent\/\D*\d+/) > 0
-      || location.pathname.search(/t\/\d+/) > 0
-      || location.pathname.search(/detail\/\d+$/) > 0
-  ) {
+
+  if (current_site_page.value === 'detail') {
     console.log('当前为种子详情页')
     torrent_detail_page.value = true
     await get_torrent_detail()
@@ -420,26 +540,9 @@ async function init_button() {
     });
     return;
   }
-  console.log('当前为种子列表页检测：', location.pathname, "====>", `/${siteInfo.value.page_torrents}`, siteInfo.value.page_torrents.startsWith(location.pathname.slice(1)))
 
-  if (location.pathname.endsWith(`/${siteInfo.value.page_torrents.replace('{}', '')}`)) {
-
-  }
-// if (location.pathname.includes(siteInfo.value.page_torrents) //尝试与配置文件中的信息绑定
-  if (
-      !(location.pathname.search(/torrents\/\D*/) > 0 ||
-          siteInfo.value.page_torrents.startsWith(location.pathname.slice(1)) ||
-          location.pathname.search(/t$/) > 0 ||
-          location.pathname.startsWith('/browse') ||
-          location.pathname.endsWith('/Torrents') ||
-          location.pathname.includes('/music.php') ||
-          location.pathname.includes('/special.php') ||
-          location.pathname.includes('/live.php') ||
-          location.pathname.includes('/torrents.php') ||
-          location.pathname.includes('/categories') ||
-          location.pathname.includes('/browse.php'))) {
-  } else {
-    console.log('当前为种子列表页')
+  if (current_site_page.value === 'torrents' || current_site_page.value === 'search') {
+    console.log(current_site_page.value === 'search' ? '当前为搜索页' : '当前为种子列表页')
     torrent_list_page.value = true
     await nextTick(async () => {
       // 可以在这里操作已经渲染的 DOM 元素或执行其他需要在 DOM 渲染完成后执行的逻辑
@@ -448,7 +551,6 @@ async function init_button() {
     });
     return;
   }
-
 }
 
 /**
@@ -655,6 +757,99 @@ async function syncCookie() {
   console.log(data)
   // 3. 同步信息
   await doSendSiteInfo(data.data);
+}
+
+const siteDataFieldLabels: Record<string, string> = {
+  id: '站点 ID',
+  site: '站点标识',
+  user_id: '用户 ID',
+  username: '用户名',
+  email: '邮箱',
+  passkey: 'PassKey',
+  time_join: '注册时间',
+  nickname: '站点昵称',
+  mirror: '镜像地址',
+  tags: '标签',
+  cookie: 'Cookie',
+  user_agent: 'User Agent',
+}
+
+const siteDataPrimaryKeys = ['id', 'site', 'user_id', 'username', 'email', 'time_join', 'nickname', 'mirror', 'tags']
+const siteDataSecretKeys = ['passkey', 'cookie']
+const siteDataAlwaysPlainKeys = ['site', 'user_agent']
+const siteDataEnvKeys = ['user_agent']
+
+const formatSiteDataValue = (value: any) => {
+  if (Array.isArray(value)) {
+    return value.join(', ')
+  }
+  if (value === null || value === undefined || value === '') {
+    return '-'
+  }
+  return String(value)
+}
+
+const encryptSiteDataValue = (value: any) => {
+  const text = formatSiteDataValue(value)
+  if (text === '-') {
+    return text
+  }
+  if (text.length <= 8) {
+    return '*'.repeat(text.length)
+  }
+  return `${text.slice(0, 4)}${'*'.repeat(Math.min(text.length - 8, 24))}${text.slice(-4)}`
+}
+
+const formatSiteDataDisplayValue = (key: string, value: any) => {
+  return siteDataEncrypted.value && !siteDataAlwaysPlainKeys.includes(key)
+      ? encryptSiteDataValue(value)
+      : formatSiteDataValue(value)
+}
+
+const getSiteDataTitle = () => {
+  const site = siteDataPreview.value.site || siteInfo.value?.name || '-'
+  return formatSiteDataValue(site)
+}
+
+const getSiteDataFields = (keys: string[]) => {
+  return keys
+      .filter(key => Object.prototype.hasOwnProperty.call(siteDataPreview.value, key))
+      .map(key => ({
+        key,
+        label: siteDataFieldLabels[key] ?? key,
+        value: formatSiteDataDisplayValue(key, siteDataPreview.value[key]),
+      }))
+}
+
+const showSiteDataModal = async () => {
+  siteDataLoading.value = true
+  siteDataModalVisible.value = true
+  siteDataEncrypted.value = true
+  try {
+    const res: CommonResponse<any> = await getSiteData()
+    if (!res.succeed) {
+      message.error(res.msg)
+      siteDataPreview.value = {}
+      return
+    }
+    siteDataPreview.value = res.data
+  } finally {
+    siteDataLoading.value = false
+  }
+}
+
+const toggleSiteDataEncrypted = () => {
+  siteDataEncrypted.value = !siteDataEncrypted.value
+  message.success(siteDataEncrypted.value ? '抓取信息已加密显示' : '抓取信息已解密显示')
+}
+
+const syncSiteData = async () => {
+  siteDataSyncLoading.value = true
+  try {
+    await syncCookie()
+  } finally {
+    siteDataSyncLoading.value = false
+  }
 }
 
 function xpath(query: string, node: Node) {
@@ -1061,6 +1256,17 @@ const getModalContainer = (id: string = 'modal-container') => {
         同步数据
       </a-button>
       <a-button
+          v-if="current_site_page === 'user' || current_site_page === 'control_panel'"
+          block
+          size="small"
+          type="text"
+          @click="showSiteDataModal">
+        <template #icon>
+          <EyeOutlined/>
+        </template>
+        查看信息
+      </a-button>
+      <a-button
           block
           size="small"
           type="text"
@@ -1206,6 +1412,93 @@ const getModalContainer = (id: string = 'modal-container') => {
         </a-collapse-panel>
       </a-collapse>
     </a-modal>
+    <a-modal
+        v-model:visible="siteDataModalVisible"
+        :bodyStyle="{ padding: 0 }"
+        :footer="null"
+        :get-container="getModalContainer"
+        :width="560"
+        title="当前页面抓取信息"
+    >
+      <a-spin :spinning="siteDataLoading">
+        <div class="site-data-panel">
+          <div class="site-data-summary">
+            <div>
+              <div class="site-data-site">{{ getSiteDataTitle() }}</div>
+              <div class="site-data-subtitle">
+                {{ current_site_page ? sitePageLabels[current_site_page] : '当前页面' }}
+              </div>
+            </div>
+            <a-space class="site-data-actions">
+              <a-button
+                  :danger="siteDataEncrypted"
+                  :disabled="Object.keys(siteDataPreview).length === 0"
+                  size="small"
+                  type="primary"
+                  @click="toggleSiteDataEncrypted"
+              >
+                <template #icon>
+                  <UnlockOutlined v-if="siteDataEncrypted"/>
+                  <LockOutlined v-else/>
+                </template>
+                {{ siteDataEncrypted ? '解密' : '加密' }}
+              </a-button>
+              <a-button
+                  :loading="siteDataSyncLoading"
+                  size="small"
+                  type="default"
+                  @click="syncSiteData"
+              >
+                <template #icon>
+                  <SyncOutlined/>
+                </template>
+                同步
+              </a-button>
+            </a-space>
+          </div>
+
+          <a-alert
+              v-if="!siteDataLoading && Object.keys(siteDataPreview).length === 0"
+              message="当前页面暂未抓取到站点信息"
+              show-icon
+              type="warning"
+          />
+
+          <div v-if="Object.keys(siteDataPreview).length > 0" class="site-data-content">
+            <section v-if="getSiteDataFields(siteDataPrimaryKeys).length > 0" class="site-data-section">
+              <div class="site-data-section-title">基础信息</div>
+              <div class="site-data-grid">
+                <div v-for="field in getSiteDataFields(siteDataPrimaryKeys)" :key="field.key" class="site-data-item">
+                  <span class="site-data-label">{{ field.label }}</span>
+                  <span class="site-data-value">{{ field.value }}</span>
+                </div>
+              </div>
+            </section>
+
+            <section v-if="getSiteDataFields(siteDataSecretKeys).length > 0" class="site-data-section">
+              <div class="site-data-section-title">凭据信息</div>
+              <div class="site-data-stack">
+                <div v-for="field in getSiteDataFields(siteDataSecretKeys)" :key="field.key"
+                     class="site-data-long-item">
+                  <span class="site-data-label">{{ field.label }}</span>
+                  <code class="site-data-code">{{ field.value }}</code>
+                </div>
+              </div>
+            </section>
+
+            <section v-if="getSiteDataFields(siteDataEnvKeys).length > 0" class="site-data-section">
+              <div class="site-data-section-title">环境信息</div>
+              <div class="site-data-stack">
+                <div v-for="field in getSiteDataFields(siteDataEnvKeys)" :key="field.key" class="site-data-long-item">
+                  <span class="site-data-label">{{ field.label }}</span>
+                  <code class="site-data-code">{{ field.value }}</code>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </a-spin>
+    </a-modal>
     <a-drawer
         v-model:visible="drawer" :bodyStyle="{
           padding:0
@@ -1317,5 +1610,129 @@ const getModalContainer = (id: string = 'modal-container') => {
   font-size: 20px;
   font-weight: bold;
   color: rgba(218, 165, 32, 0.13);
+}
+
+.site-data-panel {
+  padding: 12px;
+  background: #f6f8fb;
+}
+
+.site-data-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  border: 1px solid #e6edf5;
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.site-data-site {
+  max-width: 360px;
+  overflow: hidden;
+  color: #1f2937;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.site-data-subtitle {
+  margin-top: 1px;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.site-data-actions {
+  flex-shrink: 0;
+}
+
+.site-data-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.site-data-section {
+  padding: 10px;
+  border: 1px solid #e6edf5;
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.site-data-section-title {
+  margin-bottom: 8px;
+  color: #111827;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.site-data-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.site-data-item,
+.site-data-long-item {
+  min-width: 0;
+  padding: 8px;
+  border-radius: 5px;
+  background: #f9fafb;
+}
+
+.site-data-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.site-data-label {
+  display: block;
+  margin-bottom: 3px;
+  color: #6b7280;
+  font-size: 12px;
+  line-height: 14px;
+}
+
+.site-data-value {
+  display: block;
+  overflow-wrap: anywhere;
+  color: #111827;
+  font-size: 13px;
+  line-height: 16px;
+}
+
+.site-data-code {
+  display: block;
+  max-height: 88px;
+  overflow: auto;
+  padding: 6px;
+  border: 1px solid #e5e7eb;
+  border-radius: 5px;
+  background: #111827;
+  color: #e5e7eb;
+  font-size: 12px;
+  line-height: 16px;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+@media (max-width: 640px) {
+  .site-data-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .site-data-summary {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .site-data-site {
+    max-width: 100%;
+  }
 }
 </style>

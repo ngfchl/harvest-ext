@@ -150,7 +150,7 @@ export interface WebSite {
     page_detail: string;
     page_download: string;
     page_user: string;
-    page_search: string;
+    page_search: string | string[];
     page_message: string;
     page_hr: string;
     page_leeching: string;
