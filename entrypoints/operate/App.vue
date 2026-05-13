@@ -31,7 +31,7 @@ import {
   UserAddOutlined,
 } from '@ant-design/icons-vue';
 import prettyBytes from "pretty-bytes";
-import {MySite} from "@/types";
+import {MySite, StatusInfo} from "@/types";
 import numberFormat from "@/utils/numberFormat";
 import copy from "copy-to-clipboard";
 
@@ -180,6 +180,35 @@ const handleReverse = () => {
   reverseMode.value = !reverseMode.value;
   onSearch()
 }
+
+type StatusSortKey = keyof Pick<StatusInfo,
+    'downloaded'
+    | 'uploaded'
+    | 'my_bonus'
+    | 'my_score'
+    | 'seed'
+    | 'leech'
+    | 'invitation'
+    | 'seed_volume'
+    | 'updated_at'
+    | 'bonus_hour'
+    | 'ratio'
+>
+
+const getStatusSortValue = (site: MySite, key: StatusSortKey) => {
+  const status = site.status as Partial<StatusInfo> | null | undefined
+  const value = status?.[key]
+  if (value === null || value === undefined || value === '') {
+    return 0
+  }
+  if (key === 'updated_at') {
+    const timestamp = Date.parse(String(value))
+    return Number.isNaN(timestamp) ? 0 : timestamp
+  }
+  const numericValue = Number(value)
+  return Number.isNaN(numericValue) ? 0 : numericValue
+}
+
 const doSort = (value: string = '') => {
   switch (value) {
     case 'mail':
@@ -187,37 +216,37 @@ const doSort = (value: string = '') => {
       showMySiteList.value = showMySiteList.value.sort((a, b) => b.mail + b.notice - (a.mail + a.notice))
       break;
     case 'downloaded':
-      showMySiteList.value = showMySiteList.value.sort((a, b) => b.status?.downloaded - a.status?.downloaded)
+      showMySiteList.value = showMySiteList.value.sort((a, b) => getStatusSortValue(b, 'downloaded') - getStatusSortValue(a, 'downloaded'))
       break;
     case 'uploaded':
-      showMySiteList.value = showMySiteList.value.sort((a, b) => b.status?.uploaded - a.status?.uploaded)
+      showMySiteList.value = showMySiteList.value.sort((a, b) => getStatusSortValue(b, 'uploaded') - getStatusSortValue(a, 'uploaded'))
       break;
     case 'my_bonus':
-      showMySiteList.value = showMySiteList.value.sort((a, b) => b.status?.my_bonus - a.status?.my_bonus)
+      showMySiteList.value = showMySiteList.value.sort((a, b) => getStatusSortValue(b, 'my_bonus') - getStatusSortValue(a, 'my_bonus'))
       break;
     case 'my_score':
-      showMySiteList.value = showMySiteList.value.sort((a, b) => b.status?.my_score - a.status?.my_score)
+      showMySiteList.value = showMySiteList.value.sort((a, b) => getStatusSortValue(b, 'my_score') - getStatusSortValue(a, 'my_score'))
       break;
     case 'seed':
-      showMySiteList.value = showMySiteList.value.sort((a, b) => b.status?.seed - a.status?.seed)
+      showMySiteList.value = showMySiteList.value.sort((a, b) => getStatusSortValue(b, 'seed') - getStatusSortValue(a, 'seed'))
       break;
     case 'leech':
-      showMySiteList.value = showMySiteList.value.sort((a, b) => b.status?.leech - a.status?.leech)
+      showMySiteList.value = showMySiteList.value.sort((a, b) => getStatusSortValue(b, 'leech') - getStatusSortValue(a, 'leech'))
       break;
     case 'invitation':
-      showMySiteList.value = showMySiteList.value.sort((a, b) => b.status?.invitation - a.status?.invitation)
+      showMySiteList.value = showMySiteList.value.sort((a, b) => getStatusSortValue(b, 'invitation') - getStatusSortValue(a, 'invitation'))
       break;
     case 'seed_volume':
-      showMySiteList.value = showMySiteList.value.sort((a, b) => b.status?.seed_volume - a.status?.seed_volume)
+      showMySiteList.value = showMySiteList.value.sort((a, b) => getStatusSortValue(b, 'seed_volume') - getStatusSortValue(a, 'seed_volume'))
       break;
     case 'updated_at':
-      showMySiteList.value = showMySiteList.value.sort((a, b) => b.status?.updated_at - a.status?.updated_at)
+      showMySiteList.value = showMySiteList.value.sort((a, b) => getStatusSortValue(b, 'updated_at') - getStatusSortValue(a, 'updated_at'))
       break;
     case 'bonus_hour':
-      showMySiteList.value = showMySiteList.value.sort((a, b) => b.status?.bonus_hour - a.status?.bonus_hour)
+      showMySiteList.value = showMySiteList.value.sort((a, b) => getStatusSortValue(b, 'bonus_hour') - getStatusSortValue(a, 'bonus_hour'))
       break;
     case 'ratio':
-      showMySiteList.value = showMySiteList.value.sort((a, b) => b.status?.ratio - a.status?.ratio)
+      showMySiteList.value = showMySiteList.value.sort((a, b) => getStatusSortValue(b, 'ratio') - getStatusSortValue(a, 'ratio'))
       break;
   }
   if (reverseMode.value) {
