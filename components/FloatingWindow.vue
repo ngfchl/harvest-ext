@@ -27,7 +27,6 @@ const {
   initialize,
   filterSiteByHost,
   filterMySiteBySiteName,
-  filterSiteById,
   sendSiteInfo,
   saveSetting,
   getCookieString,
@@ -124,26 +123,16 @@ const resetPosition = async () => {
   // location.reload();
 }
 const loadLocalStorage = async () => {
-  mySiteId.value = parseInt(JSON.parse(localStorage.getItem('mySite') ?? '0'));
-  // 如果站点 ID 不存在，使用站点 host 去查找站点配置文件
-  console.log('缓存中的当前站点 ID', mySiteId.value)
-
-  if (!mySiteId.value || mySiteId.value == 0) {
-    siteInfo.value = filterSiteByHost(location.host)
-    console.log('使用站点 host 查找站点信息：', siteInfo.value)
-    if (!siteInfo.value) {
-      console.warn('查找站点失败，未在缓存中找到站点信息')
-      // message.error()
-      return;
-    }
-    console.log('开始从缓存中加载站点数据', mySiteId.value);
-    mySiteId.value = filterMySiteBySiteName(siteInfo.value.name);
-    console.log('查找到的站点信息：', mySiteId.value)
-    localStorage.setItem('mySite', JSON.stringify(mySiteId.value));
-  } else {
-    // 如果站点 Id 存在
-    siteInfo.value = await filterSiteById(mySiteId.value);
+  // 使用当前页面 host 查找站点配置文件，再根据固定配置名反查已添加站点 ID。
+  siteInfo.value = filterSiteByHost(location.host)
+  console.log('使用站点 host 查找站点信息：', siteInfo.value)
+  if (!siteInfo.value) {
+    console.warn('查找站点失败，未在缓存中找到站点信息')
+    // message.error()
+    return;
   }
+  mySiteId.value = filterMySiteBySiteName(siteInfo.value.name);
+  console.log('查找到的站点 ID：', mySiteId.value)
 
   topPosition.value = parseInt(await storage.getItem('local:topPosition') || '240')
   console.log('topPosition', topPosition.value);
@@ -221,7 +210,6 @@ const getSiteInfo = async () => {
   mySiteId.value = res.data?.mysite ?? 0;
   siteInfo.value = res?.data?.website;
   localStorage.setItem('website', JSON.stringify(res.data?.website));
-  localStorage.setItem('mySite', JSON.stringify(res.data?.mysite));
 
 }
 
