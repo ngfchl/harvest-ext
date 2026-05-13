@@ -21,7 +21,9 @@ import {
   FieldTimeOutlined,
   FilterOutlined,
   FormatPainterOutlined,
+  LinkOutlined,
   LoadingOutlined,
+  LockOutlined,
   MailOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
@@ -69,7 +71,6 @@ const {
   autoOpenAll,
 } = settingStore
 // const mySiteId = ref<number>(0)
-const showSiteList = ref(true);
 const collapsed = ref(false);
 const privateMode = ref(false);
 const reverseMode = ref(false);
@@ -622,16 +623,6 @@ const handleFilterList: MenuProps['onClick'] = key => {
 const formMaxWidth = computed(() => {
   return window.innerWidth < 350 ? '90%' : '350px';
 });
-const switchShowSiteList = async () => {
-  if (showMySiteList.value.length < 0) {
-    message.warning('正在加载数据或无站点数据')
-    return
-  }
-  console.log('switchShowSiteList', showMySiteList.value.length)
-  console.log(mySiteList.value)
-  showSiteList.value = !showSiteList.value;
-  localStorage.setItem('local:showSiteList', JSON.stringify(showSiteList.value));
-}
 const switchPrivateMode = () => {
   privateMode.value = !privateMode.value;
   localStorage.setItem('local:privateMode', JSON.stringify(privateMode.value));
@@ -717,7 +708,6 @@ const initData = async () => {
     checkScreenSize();
     window.addEventListener('resize', checkScreenSize);
     showMySiteList.value = Object.values(mySiteList.value!)
-    showSiteList.value = JSON.parse(localStorage.getItem('switchShowSiteList') || 'true');
     privateMode.value = JSON.parse(localStorage.getItem('privateMode') || 'true');
     onSearch()
   })
@@ -861,6 +851,7 @@ const openHarvester = () => {
           color: '#fde3cf',
         }"
         collapsedWidth="0"
+        :class="{ 'login-sider': !canSave }"
         class="app-sider" @collapse="onCollapse">
       <template #trigger>
         <menu-unfold-outlined v-if="collapsed"/>
@@ -893,28 +884,49 @@ const openHarvester = () => {
               type="success"
           />
         </a-space>
-        <a-space align="center" direction="vertical" style="margin-top: 16px;">
-          <a-space v-if="!canSave" size="small">
+        <div v-if="!canSave" class="login-screen">
+          <div class="login-card">
+            <div class="login-card-header">
+              <div class="login-logo">
+                <a-avatar :size="46" alt="H" src="icon/128.png"/>
+              </div>
+              <div>
+                <h1>连接收割机助手</h1>
+                <p>填写服务器地址和安全 Token 后开始鉴权</p>
+              </div>
+            </div>
             <a-form
                 :style="{ maxWidth: formMaxWidth }"
-                class="form-container"
+                class="form-container login-form"
                 layout="vertical"
 
             >
-              <a-form-item>
+              <a-form-item label="Harvest 服务器地址">
                 <a-input
                     v-model:value="setting.baseUrl"
+                    allow-clear
                     placeholder="Harvest服务器地址"
-                />
+                    size="large"
+                >
+                  <template #prefix>
+                    <LinkOutlined/>
+                  </template>
+                </a-input>
               </a-form-item>
 
-              <a-form-item>
+              <a-form-item label="安全 Token">
                 <a-input-password
                     v-model:value.lazy="setting.token"
+                    allow-clear
                     autofocus
                     label="Token"
                     placeholder="安全Token"
-                />
+                    size="large"
+                >
+                  <template #prefix>
+                    <LockOutlined/>
+                  </template>
+                </a-input-password>
               </a-form-item>
               <!--              <a-form-item-->
               <!--                  :wrapper-col="{ span: 24 }"-->
@@ -928,21 +940,20 @@ const openHarvester = () => {
               <!--                />-->
               <!--              </a-form-item>-->
             </a-form>
-          </a-space>
-          <a-space>
-            <a-button v-if="!canSave" :loading="isOperationLoading('loginServer')" block ghost type="primary"
-                      @click="loginServer">
-              登录鉴权
-            </a-button>
-
-          </a-space>
-          <a-space v-if="canSave" class="side-actions" direction="vertical">
-            <a-button block type="primary" @click="openHarvester">
-              <template #icon>
-                <ThunderboltOutlined/>
-              </template>
-              打开收割机
-            </a-button>
+            <div class="login-actions">
+              <a-button :loading="isOperationLoading('loginServer')" block class="login-button" size="large" type="primary"
+                        @click="loginServer">
+                登录鉴权
+              </a-button>
+              <div class="login-footnote">
+                <CheckCircleOutlined/>
+                <span>配置会保存在本机浏览器扩展中</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <a-space v-else align="center" direction="vertical" style="margin-top: 16px;">
+          <a-space class="side-actions" direction="vertical">
             <a-popover title="一键打开站点列表">
               <template #content>
                 <div style="max-width: 200px;">
@@ -962,14 +973,6 @@ const openHarvester = () => {
               </a-popconfirm>
             </a-popover>
             <a-button
-                block
-                type="primary"
-                @click="switchShowSiteList"
-            >
-              <span>切换页面</span>
-            </a-button>
-            <a-button
-                v-if="showSiteList"
                 :danger="!privateMode"
                 block
                 type="primary"
@@ -1104,6 +1107,22 @@ const openHarvester = () => {
                 <span>服务器信息</span>
                 <a-tag color="green">已连接</a-tag>
               </div>
+              <div class="float-image-setting">
+                <div class="float-image-preview">
+                  <a-avatar :fallback="`${setting.baseUrl}favicon.ico`"
+                            :size="setting.imgSize"
+                            :src="`${setting.imgUrl ? setting.imgUrl : `${setting.baseUrl}favicon.ico`}`"
+                  />
+                </div>
+                <div class="float-image-controls">
+                  <div class="float-image-title">
+                    <span>悬浮窗图片</span>
+                    <span>{{ setting.imgSize }}px</span>
+                  </div>
+                  <a-slider v-model:value="setting.imgSize" :max="100" :min="36" @after-change="saveSetting"/>
+                </div>
+              </div>
+
               <a-input
                   v-model:value="setting.baseUrl"
                   placeholder="Harvest服务器地址"
@@ -1115,19 +1134,6 @@ const openHarvester = () => {
                   label="Token"
                   placeholder="安全Token"
               />
-
-              <div class="float-image-setting">
-                <div class="float-image-preview">
-                  <a-avatar :fallback="`${setting.baseUrl}favicon.ico`"
-                            :size="setting.imgSize"
-                            :src="`${setting.imgUrl ? setting.imgUrl : `${setting.baseUrl}favicon.ico`}`"
-                  />
-                </div>
-                <div class="float-image-controls">
-                  <div class="float-image-title">悬浮窗图片</div>
-                  <a-slider v-model:value="setting.imgSize" :max="100" :min="36" @after-change="saveSetting"/>
-                </div>
-              </div>
 
               <a-input
                   v-model:value.lazy="setting.imgUrl"
@@ -1158,6 +1164,12 @@ const openHarvester = () => {
                   </a-button>
                 </a-popconfirm>
               </a-popover>
+              <a-button block type="primary" @click="openHarvester">
+                <template #icon>
+                  <ThunderboltOutlined/>
+                </template>
+                打开收割机
+              </a-button>
             </div>
 
           </a-space>
@@ -1223,7 +1235,7 @@ const openHarvester = () => {
         </a-row>
       </a-layout-header>
       <a-layout-content class="content">
-        <div v-if="showSiteList" class="site-panel unified-panel">
+        <div class="site-panel unified-panel">
           <div class="stats-grid">
             <div class="stat-item danger">
               <span class="stat-label">已禁用</span>
@@ -1271,6 +1283,7 @@ const openHarvester = () => {
                       <a-button
                           v-else-if="card.group === 'databaseWithoutLocalCookie' && card.mySite"
                           :loading="isSiteOperationLoading('writeSiteCookies', card.mySite)"
+                          class="site-action-button write-action"
                           ghost
                           size="small"
                           type="primary"
@@ -1308,20 +1321,6 @@ const openHarvester = () => {
 
                         <template v-else>
                           <template v-if="card.mySite">
-                            <a-tooltip>
-                              <template #title>刷新站点数据</template>
-                              <a-button
-                                  :loading="isSiteOperationLoading('refreshSite', card.mySite)"
-                                  ghost
-                                  size="small"
-                                  type="primary"
-                                  @click="refreshSite(card.mySite)">
-                                <template #icon>
-                                  <FormatPainterOutlined/>
-                                </template>
-                                刷新
-                              </a-button>
-                            </a-tooltip>
                             <a-tooltip v-if="card.mySite.sign_in">
                               <template v-if="card.mySite.sign_info == null" #title>签到</template>
                               <template v-else #title>
@@ -1334,6 +1333,7 @@ const openHarvester = () => {
                               <a-button
                                   v-if="card.mySite.sign_info == null"
                                   :loading="isSiteOperationLoading('signSite', card.mySite)"
+                                  class="site-action-button sign-action"
                                   ghost
                                   size="small"
                                   type="primary"
@@ -1343,15 +1343,31 @@ const openHarvester = () => {
                                 </template>
                                 签到
                               </a-button>
-                              <a-button v-else disabled ghost size="small" type="primary">
+                              <a-button v-else class="site-action-button sign-action signed-action" disabled ghost size="small" type="primary">
                                 <template #icon>
                                   <CheckCircleOutlined/>
                                 </template>
                                 已签
                               </a-button>
                             </a-tooltip>
+                            <a-tooltip>
+                              <template #title>刷新站点数据</template>
+                              <a-button
+                                  :loading="isSiteOperationLoading('refreshSite', card.mySite)"
+                                  class="site-action-button refresh-action"
+                                  ghost
+                                  size="small"
+                                  type="primary"
+                                  @click="refreshSite(card.mySite)">
+                                <template #icon>
+                                  <FormatPainterOutlined/>
+                                </template>
+                                刷新
+                              </a-button>
+                            </a-tooltip>
                             <a-button
                                 :loading="isSiteOperationLoading('syncSingleSite', card.mySite)"
+                                class="site-action-button sync-action"
                                 ghost
                                 size="small"
                                 type="primary"
@@ -1365,6 +1381,7 @@ const openHarvester = () => {
                           <template v-if="card.group === 'unadded' && card.webSite">
                             <a-button
                                 :loading="isOperationLoading(supportSiteOperationKey('addSupportSite', card.webSite))"
+                                class="site-action-button add-action"
                                 ghost
                                 size="small"
                                 type="primary"
@@ -1380,7 +1397,7 @@ const openHarvester = () => {
                               <a-typography-paragraph :content="`本地 Cookie：${card.localCookie}`" ellipsis>
                               </a-typography-paragraph>
                             </template>
-                            <a-button ghost size="small" type="primary" @click="copyLocalCookie(card.localCookie)">
+                            <a-button class="site-action-button copy-action" ghost size="small" type="primary" @click="copyLocalCookie(card.localCookie)">
                               <template #icon>
                                 <CopyOutlined/>
                               </template>
@@ -1463,15 +1480,10 @@ const openHarvester = () => {
             </a-row>
           </section>
         </div>
-        <a-row v-else justify="space-around" type="flex">
-          <a-col>
-            倒车请注意
-          </a-col>
-        </a-row>
 
         <a-tabs v-if="false" v-model:activeKey="activeKey" centered type="card">
           <a-tab-pane key="1" tab="站点数据">
-            <div v-if="showSiteList" class="site-panel">
+            <div class="site-panel">
               <div class="stats-grid">
                 <div class="stat-item danger">
                   <span class="stat-label">禁用</span>
@@ -1662,11 +1674,6 @@ const openHarvester = () => {
 
               </a-row>
             </div>
-            <a-row v-else justify="space-around" type="flex">
-              <a-col>
-                倒车请注意
-              </a-col>
-            </a-row>
           </a-tab-pane>
           <a-tab-pane key="2" tab="站点列表">
             <div class="stats-grid compact">
@@ -1908,6 +1915,19 @@ const openHarvester = () => {
   text-align: center;
 }
 
+.login-sider {
+  min-height: 100vh;
+  border-right: none;
+  background: #eef4f7 !important;
+  box-shadow: none;
+}
+
+.login-sider :deep(.ant-layout-sider-children) {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
 .main-layout {
   background: #f4f7fb;
 }
@@ -1971,6 +1991,114 @@ const openHarvester = () => {
   padding: 12px !important;
 }
 
+.login-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  width: 100%;
+  padding: 32px 16px;
+}
+
+.login-card {
+  width: min(430px, 100%);
+  padding: 28px;
+  border: 1px solid #dbe5ec;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 16px 42px rgba(15, 23, 42, 0.12);
+  text-align: left;
+}
+
+.login-card-header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.login-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 58px;
+  height: 58px;
+  border: 1px solid #cfe3ec;
+  border-radius: 8px;
+  background: #f1f8fb;
+}
+
+.login-card h1 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 30px;
+}
+
+.login-card p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.login-form {
+  padding: 0;
+}
+
+.login-form :deep(.ant-form-item) {
+  margin-bottom: 16px;
+}
+
+.login-form :deep(.ant-form-item-label) {
+  padding-bottom: 5px;
+}
+
+.login-form :deep(.ant-form-item-label > label) {
+  color: #334155;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.login-form :deep(.ant-input-affix-wrapper) {
+  border-radius: 7px;
+}
+
+.login-form :deep(.ant-input-prefix) {
+  margin-right: 8px;
+  color: #64748b;
+}
+
+.login-actions {
+  width: min(350px, 100%);
+  margin: 2px auto 0;
+}
+
+.login-button {
+  width: 100%;
+  border-radius: 7px;
+  font-weight: 600;
+  box-shadow: 0 8px 18px rgba(21, 94, 117, 0.18);
+}
+
+.login-footnote {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 14px;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 18px;
+  text-align: center;
+}
+
+.login-footnote svg {
+  color: #15803d;
+}
+
 .side-actions {
   width: 100%;
   padding: 12px;
@@ -2010,10 +2138,10 @@ const openHarvester = () => {
 }
 
 .float-image-setting {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   gap: 10px;
-  align-items: center;
+  align-items: stretch;
   padding: 8px;
   border: 1px solid #e2e8f0;
   border-radius: 6px;
@@ -2024,8 +2152,8 @@ const openHarvester = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 58px;
-  height: 58px;
+  width: 100%;
+  min-height: 112px;
   overflow: hidden;
   border: 1px solid #dbeafe;
   border-radius: 8px;
@@ -2041,6 +2169,9 @@ const openHarvester = () => {
 }
 
 .float-image-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin-bottom: 2px;
   color: #475569;
   font-size: 12px;
@@ -2138,6 +2269,92 @@ const openHarvester = () => {
 .site-action-bar :deep(.ant-btn) {
   min-width: 48px;
   border-radius: 5px;
+}
+
+.site-action-button {
+  text-shadow: none;
+}
+
+.sign-action {
+  color: #15803d !important;
+  border-color: #86efac !important;
+  background: #f0fdf4 !important;
+}
+
+.sign-action:not([disabled]):hover {
+  color: #166534 !important;
+  border-color: #22c55e !important;
+  background: #dcfce7 !important;
+}
+
+.signed-action,
+.signed-action:hover,
+.signed-action:focus {
+  color: #15803d !important;
+  border-color: #86efac !important;
+  background: #f0fdf4 !important;
+  opacity: 1;
+  cursor: not-allowed;
+}
+
+.refresh-action {
+  color: #0369a1 !important;
+  border-color: #7dd3fc !important;
+  background: #f0f9ff !important;
+}
+
+.refresh-action:hover {
+  color: #075985 !important;
+  border-color: #38bdf8 !important;
+  background: #e0f2fe !important;
+}
+
+.sync-action {
+  color: #7c3aed !important;
+  border-color: #c4b5fd !important;
+  background: #f5f3ff !important;
+}
+
+.sync-action:hover {
+  color: #6d28d9 !important;
+  border-color: #a78bfa !important;
+  background: #ede9fe !important;
+}
+
+.add-action {
+  color: #c2410c !important;
+  border-color: #fdba74 !important;
+  background: #fff7ed !important;
+}
+
+.add-action:hover {
+  color: #9a3412 !important;
+  border-color: #fb923c !important;
+  background: #ffedd5 !important;
+}
+
+.copy-action {
+  color: #475569 !important;
+  border-color: #cbd5e1 !important;
+  background: #ffffff !important;
+}
+
+.copy-action:hover {
+  color: #0f172a !important;
+  border-color: #94a3b8 !important;
+  background: #f8fafc !important;
+}
+
+.write-action {
+  color: #0f766e !important;
+  border-color: #5eead4 !important;
+  background: #f0fdfa !important;
+}
+
+.write-action:hover {
+  color: #115e59 !important;
+  border-color: #2dd4bf !important;
+  background: #ccfbf1 !important;
 }
 
 .site-action-bar :deep(.ant-btn-text) {
@@ -2432,6 +2649,20 @@ const openHarvester = () => {
 }
 
 @media (max-width: 420px) {
+  .login-screen {
+    padding: 18px 12px;
+  }
+
+  .login-card {
+    padding: 20px;
+  }
+
+  .login-card-header {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    text-align: center;
+  }
+
   .stats-grid,
   .stats-grid.compact {
     grid-template-columns: 1fr;
