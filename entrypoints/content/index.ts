@@ -3,7 +3,7 @@ import FloatingWindow from "@/components/FloatingWindow.vue";
 import Antd from 'ant-design-vue';
 import 'ant-design-vue/dist/antd.css';
 import {createPinia} from "pinia";
-import {WebSite} from "@/types";
+import {MySite, WebSite} from "@/types";
 
 export default defineContentScript({
     matches: ["<all_urls>"],
@@ -11,7 +11,10 @@ export default defineContentScript({
     cssInjectionMode: 'ui',
     async main(ctx) {
         // 1. 从缓存中获取网站列表
-        let webSiteListCache = await storage.getItem('local:supportedSites')
+        const [webSiteListCache, mySiteListCache] = await Promise.all([
+            storage.getItem('local:supportedSites'),
+            storage.getItem('local:mySites'),
+        ])
         // @ts-ignore
         if (!webSiteListCache || !(webSiteListCache.data)) {
             console.warn('站点数据未找到');
@@ -39,6 +42,9 @@ export default defineContentScript({
             console.warn('收割机不支持当前站点，程序终止！')
             return
         }
+        // @ts-ignore
+        const mySiteList: MySite[] = Object.values(mySiteListCache?.data || {});
+        const mySiteId = mySiteList.find(site => site.site === support.name)?.id || 0;
         console.log('开始向站点插入悬浮窗UI');
 
         // 3. Define your UI
@@ -47,7 +53,10 @@ export default defineContentScript({
             position: "inline",
             anchor: document.body,
             onMount(container) {
-                const app = createApp(FloatingWindow);
+                const app = createApp(FloatingWindow, {
+                    initialWebsite: support,
+                    initialMySiteId: mySiteId,
+                });
                 app.use(Antd)
                 app.use(createPinia())
                 app.mount(container);
@@ -76,5 +85,4 @@ export default defineContentScript({
         }
     },
 });
-
 

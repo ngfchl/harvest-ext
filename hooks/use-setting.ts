@@ -24,7 +24,6 @@ export const useSettingStore = defineStore("setting", () => {
     const downloaders = ref<Downloader[]>()
     const webSiteList = ref<{ [key: string]: WebSite }>()
     const mySiteList = ref<{ [key: string]: MySite }>()
-    const importMode = ref<boolean>(false)
     const importCookieMode = ref<boolean>(false)
     const syncMode = ref<boolean>(false)
     const isOpenInPopupFlag = ref<boolean>(false)
@@ -69,12 +68,26 @@ export const useSettingStore = defineStore("setting", () => {
         }
     };
 
-    // 自动初始化 - 正确处理Promise
-    const initialize = async () => {
+    const initializeCore = async () => {
         const res = await getSetting();
         if (res.succeed) {
-            await loadFromCacheIfAvailable();
+            await loadCoreFromCacheIfAvailable();
         }
+    };
+
+    const initializeDownloaders = async () => {
+        const res = await getSetting();
+        if (res.succeed) {
+            await loadDownloadersFromCacheIfAvailable();
+        }
+    };
+
+    // 自动初始化 - 正确处理Promise
+    const initialize = async () => {
+        await initializeCore();
+        initializeDownloaders().catch(error => {
+            console.error("初始化下载器失败:", error);
+        });
     };
 
     /**
@@ -141,6 +154,78 @@ export const useSettingStore = defineStore("setting", () => {
         message.warning('缓存数据已过期，正在重新加载数据')
         await cacheServerData()
         return true;
+    }
+
+    const loadCoreFromCacheIfAvailable = async (): Promise<boolean> => {
+        console.log('正在读取本地站点缓存数据')
+        const [cachedSupportedSites, cachedMySites] = await Promise.all([
+            getFromCache('local:supportedSites'),
+            getFromCache('local:mySites')
+        ]);
+
+        if (cachedSupportedSites && cachedMySites) {
+            webSiteList.value = cachedSupportedSites;
+            mySiteList.value = cachedMySites;
+            console.log('使用本地站点缓存数据');
+            return false;
+        }
+
+        message.warning('站点缓存数据已过期，正在重新加载数据')
+        await cacheCoreServerData()
+        return true;
+    }
+
+    const loadDownloadersFromCacheIfAvailable = async (): Promise<boolean> => {
+        console.log('正在读取本地下载器缓存数据')
+        const cachedDownloaders = await getFromCache('local:downloaders');
+        if (cachedDownloaders) {
+            downloaders.value = cachedDownloaders;
+            console.log('使用本地下载器缓存数据');
+            return false;
+        }
+
+        const downloaderResult = await getDownloaders()
+        if (!downloaderResult.succeed) {
+            console.log('获取下载器列表失败:', downloaderResult.msg);
+            throw new Error('获取下载器列表失败');
+        }
+        downloaders.value = downloaderResult.data;
+        await saveToCache('local:downloaders', downloaderResult.data);
+        return true;
+    }
+
+    const cacheCoreServerData = async () => {
+        try {
+            console.log('开始缓存站点核心数据...');
+            const [supportedSites, mySites] = await Promise.all([
+                getWebSiteList(),
+                getMySiteList()
+            ]);
+
+            const validateResult = (result: CommonResponse<any>, action: string) => {
+                if (!result.succeed) {
+                    console.log(`${action}失败:`, result.msg);
+                    throw new Error(`${action}失败`);
+                }
+                return result.data;
+            };
+
+            const supportedSitesData = validateResult(supportedSites, '获取支持的站点列表');
+            const mySitesData = validateResult(mySites, '获取已添加站点列表');
+
+            webSiteList.value = supportedSitesData;
+            mySiteList.value = mySitesData;
+
+            await Promise.all([
+                saveToCache('local:supportedSites', supportedSitesData),
+                saveToCache('local:mySites', mySitesData)
+            ]);
+
+            console.log('站点核心数据获取并缓存成功！');
+        } catch (error) {
+            console.error('缓存站点核心数据失败', error);
+            message.error(`缓存站点核心数据失败:${error}`);
+        }
     }
     /**
      * 从服务器拉取数据并缓存
@@ -431,19 +516,6 @@ export const useSettingStore = defineStore("setting", () => {
         }
     }
     /**
-     * 切换是否为站点导入模式
-     */
-    const switchImportMode = async () => {
-        importMode.value = !importMode.value;
-        await storage.setItem('local:importMode', importMode.value)
-        // if (importMode.value && isOpenInPopupFlag.value) {
-        //     // 在新标签页打开弹出窗口
-        //     const url = browser.runtime.getURL('/operate.html');
-        //     browser.tabs.create({url});
-        // }
-    }
-
-    /**
      * 获取指定范围的随机数
      * @param min
      * @param max
@@ -463,22 +535,108 @@ export const useSettingStore = defineStore("setting", () => {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 
+    const parseCookieNames = (cookieString: string) => {
+        return cookieString
+            .split(';')
+            .map(item => item.trim())
+            .filter(Boolean)
+            .map(item => {
+                const separatorIndex = item.indexOf('=');
+                return separatorIndex >= 0 ? item.slice(0, separatorIndex).trim().toLowerCase() : item.toLowerCase();
+            })
+            .filter(Boolean);
+    }
+
+    const isPotentialSiteAuthCookie = (cookieString: string) => {
+        const trimmedCookie = cookieString.trim();
+        if (trimmedCookie.length < 24) {
+            return false;
+        }
+
+        const cookieNames = parseCookieNames(trimmedCookie);
+        if (cookieNames.length === 0) {
+            return false;
+        }
+
+        const authNamePatterns = [
+            /uid/,
+            /user/,
+            /member/,
+            /auth/,
+            /pass/,
+            /token/,
+            /login/,
+            /rss/,
+            /c_secure/,
+        ];
+        if (cookieNames.some(name => authNamePatterns.some(pattern => pattern.test(name)))) {
+            return true;
+        }
+
+        const genericCookieNames = new Set([
+            '_ga',
+            '_gid',
+            '_gat',
+            '_gcl_au',
+            '_fbp',
+            'cf_clearance',
+            '__cf_bm',
+            '__cflb',
+            '__cfruid',
+            'cf_chl_2',
+            'cf_chl_rc_i',
+            'cf_chl_rc_ni',
+            'cf_chl_rc_m',
+            'Hm_lvt',
+            'Hm_lpvt',
+            'theme',
+            'lang',
+            'language',
+            'locale',
+            'timezone',
+        ].map(name => name.toLowerCase()));
+        const meaningfulCookieNames = cookieNames.filter(name => {
+            if (genericCookieNames.has(name)) {
+                return false;
+            }
+            return !name.startsWith('_ga') && !name.startsWith('_pk_') && !name.startsWith('utm');
+        });
+
+        return meaningfulCookieNames.length >= 2 && trimmedCookie.length >= 80;
+    }
+
+    const buildControlPanelUrl = (baseUrl: string, controlPanelPath: string) => {
+        if (!controlPanelPath || controlPanelPath.includes("{}")) {
+            return baseUrl;
+        }
+        return new URL(normalizePath(controlPanelPath), baseUrl).toString();
+    }
+
     /**
      * 自动添加战地啊
      */
     const autoAddSites = async () => {
         const toAddSites = await filterToAddSite()
         console.log('未添加的站点:', toAddSites)
+        let openedCount = 0
+        let skippedCount = 0
         for (const site of Object.values(toAddSites)) {
             try {
-                await addSingleSite(site);
+                const opened = await addSingleSite(site);
+                if (opened) {
+                    openedCount += 1
+                } else {
+                    skippedCount += 1
+                }
             } catch (e) {
                 console.log(e)
+                skippedCount += 1
             } finally {
                 let seconds = getRandomInt(1, 10)
                 await sleep(seconds * 200)
             }
         }
+        message.success(`一键添加处理完成，已打开 ${openedCount} 个站点，跳过 ${skippedCount} 个无有效 Cookie 的站点`);
     }
     /**
      * 更新单站数据
@@ -558,33 +716,29 @@ export const useSettingStore = defineStore("setting", () => {
                 const response = await getCookieString(host);
                 // 筛选 Cookie，无效的 Cookie 直接排除
                 // 有效站点挨个打开标签页【控制面板页面】，自动同步信息
-                if (response.succeed) {
+                if (response.succeed && response.data && isPotentialSiteAuthCookie(response.data)) {
                     // 保存Cookie到插件存储（推荐使用chrome.storage）
                     // await storage.setItem(<StorageItemKey>host!, response.data);
-                    let panelUrl: string;
-                    if (site.page_control_panel.includes("{}")) {
-                        panelUrl = url
-                    } else {
-                        // 构建完整URL（处理路径格式）
-                        panelUrl = `${url}${normalizePath(site.page_control_panel)}`;
-                    }
+                    const panelUrl = buildControlPanelUrl(url, site.page_control_panel);
                     // 在新标签页打开（浏览器插件API）
-                    console.log('正在打开自动同步页面:', url);
+                    console.log('正在打开自动同步页面:', panelUrl);
 
-                    const res = await browser.runtime.sendMessage({
+                    await browser.runtime.sendMessage({
                         type: 'openPanelUrl',
                         payload: {
                             setting: toRaw(setting.value),
                             host: panelUrl,
+                            active: false,
                         }
                     });
-                    break; // 成功后退出
+                    return true;
                 }
             } catch (error) {
                 console.error(`处理URL ${url}时出错:`, error);
             }
         }
-        console.warn(`${site.name} 所有URL均未能获取有效Cookie`);
+        console.warn(`${site.name} 所有URL均未能获取有效登录 Cookie`);
+        return false;
     };
 
 
@@ -592,41 +746,20 @@ export const useSettingStore = defineStore("setting", () => {
      * 自动清理站点收割机存储信息
      */
     const autoClearSitesHarvestInfo = async () => {
-        for (const site of Object.values(webSiteList.value!)) {
-            try {
-                await clearSingleSiteHarvestInfo(site);
-            } catch (e) {
-                console.log(e)
-            } finally {
-                let seconds = getRandomInt(1, 10)
-                await sleep(seconds * 200)
-            }
-        }
+        await cacheServerData()
+        message.success('站点配置列表和站点信息列表缓存已刷新');
     }
+
     /**
      * 清理单站存储的收割机信息
      * @param site
      */
     const clearSingleSiteHarvestInfo = async (site: WebSite) => {
         console.log(`正在清理站点收割机存储信息： ${site.name} `);
-        for (const url of site.url) {
-            try {
-                const res = await browser.runtime.sendMessage({
-                    type: 'clearSiteHarvestInfo',
-                    payload: {
-                        setting: toRaw(setting.value),
-                        host: url,
-                    }
-                });
-            } catch (e) {
-                console.log(e)
-            } finally {
-                await sleep(300)
-            }
-        }
+        await cacheServerData()
     }
     // // 立即执行初始化，但不阻塞其他代码
-    initialize().catch(error => {
+    initializeCore().catch(error => {
         console.error("初始化设置失败:", error);
     });
     /**
@@ -694,15 +827,13 @@ export const useSettingStore = defineStore("setting", () => {
      * 保存站点信息到服务器
      * @param data
      */
-    const sendSiteInfo = async (data: Record<string, any>) => {
-        const importMode: boolean = await storage.getItem('local:importMode') || false
-        console.log('站点导入模式', importMode);
+    const sendSiteInfo = async (data: Record<string, any>, options: { closeTabOnSuccess?: boolean } = {}) => {
         return await browser.runtime.sendMessage({
             type: 'sendSiteInfo',
             payload: {
                 setting: toRaw(setting.value),
                 data: data,
-                importMode: importMode,
+                closeTabOnSuccess: Boolean(options.closeTabOnSuccess),
             }
         })
     }
@@ -761,6 +892,7 @@ export const useSettingStore = defineStore("setting", () => {
         cookie: string,
         savePath: string | null,
         urlList: string[],
+        options: Record<string, any> = {},
     ) => {
         return await browser.runtime.sendMessage({
             type: 'pushTorrent',
@@ -773,6 +905,7 @@ export const useSettingStore = defineStore("setting", () => {
                 cookie: cookie,
                 savePath: savePath,
                 urlList: urlList,
+                options: options,
             }))
         })
     }
@@ -855,6 +988,7 @@ export const useSettingStore = defineStore("setting", () => {
 
     return {
         autoAddSites,
+        addSingleSite,
         autoClearSitesHarvestInfo,
         autoImportCookie,
         autoOpenAll,
@@ -874,10 +1008,13 @@ export const useSettingStore = defineStore("setting", () => {
         getSetting,
         getSite,
         importCookieMode,
-        importMode,
         initialize,
+        initializeCore,
+        initializeDownloaders,
         isOpenInPopup,
         isOpenInPopupFlag,
+        loadCoreFromCacheIfAvailable,
+        loadDownloadersFromCacheIfAvailable,
         loadFromCacheIfAvailable,
         mySiteList,
         openPopupInTab,
@@ -891,7 +1028,6 @@ export const useSettingStore = defineStore("setting", () => {
         showText,
         signSingleSite,
         sleep,
-        switchImportMode,
         syncMode,
         syncSingleSiteCookie,
         syncTorrents,

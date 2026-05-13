@@ -66,10 +66,6 @@ export default defineBackground(() => {
                         response = await openPanelUrl(request.payload)
                         console.log('打开指定页面执行结果', response)
                         break;
-                    case "clearSiteHarvestInfo":
-                        response = await clearSiteHarvestInfo(request.payload)
-                        console.log('清理收割机任务执行结果', response)
-                        break;
                     case "refreshSingleSite":
                         response = await refreshSingleSiteApi(request.payload)
                         console.log('刷新单站数据执行结果', response)
@@ -303,7 +299,7 @@ const searchMultiSiteApi = async (params: {
 async function sendSiteInfoApi(params: {
     setting: Settings,
     data: Record<string, any>,
-    importMode: boolean,
+    closeTabOnSuccess?: boolean,
 }, sender: Browser.runtime.MessageSender) {
     const response = await fetchApi({
         setting: params.setting,
@@ -312,8 +308,8 @@ async function sendSiteInfoApi(params: {
         body: JSON.stringify(params.data),
         contentType: "application/json",
     });
-    console.log(`站点添加结果：${params.importMode} == ${response.succeed}`);
-    if (response.succeed && params.importMode && sender.tab?.id) {
+    console.log(`站点同步结果：closeTabOnSuccess=${params.closeTabOnSuccess} succeed=${response.succeed}`);
+    if (response.succeed && params.closeTabOnSuccess && sender.tab?.id) {
         browser.tabs.remove(sender.tab.id)
     }
 
@@ -373,17 +369,22 @@ const pushTorrentApi = async (params: {
     cookie: string,
     savePath: string | null,
     urlList: string[],
+    options?: Record<string, any>,
 }) => {
+    const {tags, ...extraOptions} = params.options || {};
     return fetchApi({
         ...params,
         path: `api/option/push_monkey/${params.downloaderId}/${params.mySiteId}`,
         method: "POST",
         body: JSON.stringify({
+            ...extraOptions,
             cookie: params.cookie,
             category: params.category,
             save_path: params.savePath,
             urls: params.urlList,
-            tags: JSON.stringify([params.siteName, "harvest-monkey"]),
+            tags: typeof tags === "string"
+                ? tags
+                : JSON.stringify(tags ?? [params.siteName, "harvest-monkey"]),
         }),
         contentType: "application/x-www-form-urlencoded",
     });
@@ -430,56 +431,9 @@ const syncTorrentsApi = async (params: {
 async function openPanelUrl(params: {
     setting: Settings,
     host: string,
+    active?: boolean,
 }) {
-    const importMode: boolean = await storage.getItem('local:importMode') || false
-    await browser.tabs.create({url: params.host, active: !importMode});
-}
-
-/**
- * 在新标签打开指定网页 清理 localStorage 字段并关闭标签页
- */
-async function clearSiteHarvestInfo(params: {
-    setting: Settings,
-    host: string,
-}) {
-    return new Promise<void>((resolve, reject) => {
-        browser.tabs.create({url: params.host, active: false}).then(tab => {
-            if (!tab.id) return reject('无法创建标签页');
-            const tabId = tab.id;
-            // 等待页面加载完成
-            console.log(`开始清理：${params.host} 站点收割机相关缓存信息...`)
-            const handleUpdate = (updatedTabId: number, changeInfo: Browser.tabs.OnUpdatedInfo,) => {
-                if (updatedTabId === tabId && changeInfo.status === 'complete') {
-                    // 注入脚本执行 localStorage 删除
-                    browser.scripting.executeScript({
-                        target: {tabId},
-                        func: (keysToDelete: string[]) => {
-                            keysToDelete.forEach(key => {
-                                localStorage.removeItem(key);
-                                console.log(`[自动清理] 已删除 localStorage: ${key}`);
-                            });
-                        },
-                        args: [[
-                            'website',
-                            'mySite',
-                        ]],
-                    }).then(() => {
-                        browser.tabs.remove(tabId);
-                        browser.tabs.onUpdated.removeListener(handleUpdate);
-                        resolve();
-                    }).catch(err => {
-                        browser.tabs.onUpdated.removeListener(handleUpdate);
-                        reject(err);
-                    });
-                }
-            };
-
-            // 监听页面加载完成
-            browser.tabs.onUpdated.addListener(handleUpdate);
-        }).catch(err => {
-            reject(err);
-        });
-    });
+    await browser.tabs.create({url: params.host, active: params.active ?? false});
 }
 
 /**
