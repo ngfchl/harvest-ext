@@ -348,18 +348,22 @@ async function getUid() {
 }
 
 async function download_to() {
-
+  resetTorrentListControls()
+  downloadMode.value = 'single'
   await get_torrent_detail()
   console.log(torrents.value)
   singleTorrent.value = torrents.value[0]
-  resetTorrentListControls()
-  downloadMode.value = 'single'
-  await generate_magnet_url(false)
-  modal_title.value = '正在下载当前种子...'
-  await showModal()
+  if (!await ensureDownloadersAvailable()) {
+    return
+  }
+  if (torrents.value.length <= 0) {
+    message.warning('没有符合条件的种子！')
+    return
+  }
+  await prepareTorrentPush()
 }
 
-const showModal = async () => {
+const ensureDownloadersAvailable = async () => {
   if ((downloaders.value?.length || 0) <= 0) {
     await initializeDownloaders().catch(error => {
       console.error('加载下载器失败:', error)
@@ -367,6 +371,13 @@ const showModal = async () => {
   }
   if ((downloaders.value?.length || 0) <= 0) {
     message.warning('没有可用的下载器！请先在收割机中添加！')
+    return false
+  }
+  return true
+}
+
+const showModal = async () => {
+  if (!await ensureDownloadersAvailable()) {
     return
   }
   if (torrents.value.length <= 0) {
@@ -490,6 +501,45 @@ const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\
 
 const getCurrentPagePath = () => stripTrailingSlash(`${location.pathname}${location.search}`)
 
+const pagePathnameMatches = (configPathname: string, currentPathname: string) => {
+  if (configPathname.includes('{}')) {
+    const regexSource = configPathname.split('{}').map(escapeRegExp).join('[^/?&#]+')
+    return new RegExp(`^${regexSource}$`).test(currentPathname)
+  }
+  return currentPathname === configPathname
+}
+
+const pageSearchMatches = (configSearch: string, currentSearch: string) => {
+  if (!configSearch || configSearch.length <= 1) {
+    return true
+  }
+  const configParams = new URLSearchParams(configSearch)
+  const currentParams = new URLSearchParams(currentSearch)
+  for (const [key, value] of configParams.entries()) {
+    const currentValue = currentParams.get(key)
+    if (!currentValue) {
+      return false
+    }
+    if (value.includes('{}')) {
+      const regexSource = value.split('{}').map(escapeRegExp).join('[^&#]+')
+      if (!new RegExp(`^${regexSource}$`).test(currentValue)) {
+        return false
+      }
+      continue
+    }
+    if (currentValue !== value) {
+      return false
+    }
+  }
+  return true
+}
+
+const pageConfigMatchesCurrentPath = (normalizedConfig: string, currentPath: string) => {
+  const {pathname: configPathname, search: configSearch} = splitPagePath(normalizedConfig)
+  const {pathname: currentPathname, search: currentSearch} = splitPagePath(currentPath)
+  return pagePathnameMatches(configPathname, currentPathname) && pageSearchMatches(configSearch, currentSearch)
+}
+
 const pagePathMatches = (config: PageConfig) => {
   const currentPath = getCurrentPagePath()
   const currentPathname = stripTrailingSlash(location.pathname)
@@ -502,19 +552,24 @@ const pagePathMatches = (config: PageConfig) => {
     if (item.includes('{}')) {
       if (myUid.value) {
         const uidConfig = normalizePagePath(item.replaceAll('{}', myUid.value))
-        if (hasMeaningfulSearch(uidConfig) ? currentPath === uidConfig : currentPathname === splitPagePath(uidConfig).pathname) {
+        if (hasMeaningfulSearch(uidConfig) ? pageConfigMatchesCurrentPath(uidConfig, currentPath) : currentPathname === splitPagePath(uidConfig).pathname) {
           return true
         }
+      }
+
+      if (shouldMatchSearch && pageConfigMatchesCurrentPath(normalizedConfig, currentPath)) {
+        return true
       }
 
       const target = shouldMatchSearch ? currentPath : currentPathname
       const regexConfig = shouldMatchSearch ? normalizedConfig : configPathname
       const regexSource = regexConfig.split('{}').map(escapeRegExp).join('[^/?&#]+')
-      return new RegExp(`^${regexSource}$`).test(target)
+      const regexSuffix = shouldMatchSearch ? '(?:[&#].*)?' : ''
+      return new RegExp(`^${regexSource}${regexSuffix}$`).test(target)
     }
 
     if (shouldMatchSearch) {
-      return currentPath === normalizedConfig || currentPathname === configPathname
+      return pageConfigMatchesCurrentPath(normalizedConfig, currentPath) || currentPathname === configPathname
     }
     return currentPathname === configPathname
   })
@@ -1019,10 +1074,16 @@ const readDisplayNodeValue = (node: Node | null) => {
     return normalizeTorrentText(node.nodeValue)
   }
   if (node instanceof HTMLImageElement) {
-    return normalizeTorrentText(node.alt || node.title || node.getAttribute('aria-label') || readNodeValue(node))
+    return normalizeTorrentText(node.alt)
+        || normalizeTorrentText(node.title)
+        || normalizeTorrentText(node.getAttribute('aria-label'))
+        || readNodeValue(node)
   }
   if (node instanceof HTMLElement) {
-    return normalizeTorrentText(node.textContent || node.title || node.getAttribute('aria-label') || readNodeValue(node))
+    return normalizeTorrentText(node.textContent)
+        || normalizeTorrentText(node.title)
+        || normalizeTorrentText(node.getAttribute('aria-label'))
+        || readNodeValue(node)
   }
   return normalizeTorrentText(node.textContent || readNodeValue(node))
 }
@@ -1197,12 +1258,19 @@ const normalizeExtractedTorrent = (item: Partial<ExtractedTorrent>, index = 0): 
   const tid = normalizeTorrentText(item.tid || extractTorrentIdFromUrl(detailUrl || magnetUrl))
   const fallbackDownloadUrl = buildDownloadUrl(tid)
   const primaryUrl = magnetUrl || fallbackDownloadUrl || detailUrl
-  const pageTags = Array.isArray(item.page_tags)
+  const rawPageTags = Array.isArray(item.page_tags)
       ? item.page_tags.map(tag => normalizeTorrentText(tag)).filter(Boolean)
-      : Array.isArray(item.tags)
-          ? item.tags.map(tag => normalizeTorrentText(tag)).filter(Boolean)
-          : []
+      : []
+  const fallbackTags = Array.isArray(item.tags)
+      ? item.tags.map(tag => normalizeTorrentText(tag)).filter(Boolean)
+      : []
+  const pageTags = rawPageTags.length > 0 ? rawPageTags : fallbackTags
   const key = normalizeTorrentText(item.key) || createTorrentKey({tid, magnetUrl, detailUrl, title: item.title}, index)
+  const rawSaleExpire = normalizeTorrentText(item.sale_expire)
+  const saleExpire = extractSaleExpireText(rawSaleExpire)
+      || normalizeSaleExpireText(rawSaleExpire)
+      || extractSaleExpireText(item.sale_status, pageTags)
+  const saleStatus = cleanSaleStatusText(item.sale_status, saleExpire)
 
   return {
     key,
@@ -1218,8 +1286,8 @@ const normalizeExtractedTorrent = (item: Partial<ExtractedTorrent>, index = 0): 
     size: normalizeTorrentText(item.size),
     progress: normalizeTorrentText(item.progress),
     hr: item.hr ?? '',
-    sale_status: normalizeTorrentText(item.sale_status) || '无优惠',
-    sale_expire: normalizeTorrentText(item.sale_expire),
+    sale_status: saleStatus || '无优惠',
+    sale_expire: saleExpire,
     published: normalizeTorrentText(item.published),
     seeders: normalizeTorrentText(item.seeders),
     leechers: normalizeTorrentText(item.leechers),
@@ -1236,17 +1304,73 @@ const normalizeExtractedTorrent = (item: Partial<ExtractedTorrent>, index = 0): 
 const hasPushableTorrentUrl = (torrent: ExtractedTorrent) => Boolean(torrent.primaryUrl || torrent.detailUrl)
 
 const getTorrentTags = (torrent: any) => {
-  const sourceTags = torrent.page_tags ?? torrent.tags
+  const sourceTags = Array.isArray(torrent.page_tags) && torrent.page_tags.length > 0
+      ? torrent.page_tags
+      : torrent.tags
+  const siteName = normalizeTorrentText(siteInfo.value?.name)
   const tags = Array.isArray(sourceTags) ? sourceTags : [sourceTags]
   return tags
       .flatMap((tag: unknown) => normalizeTorrentText(tag).split(/[,，/|]/))
       .map((tag: string) => tag.trim())
-      .filter(Boolean)
+      .filter(tag => tag && tag !== siteName)
 }
 
 const getUniqueTorrentValues = (values: string[]) => {
   return [...new Set(values.map(value => value.trim()).filter(Boolean))]
       .sort((a, b) => a.localeCompare(b, 'zh-Hans-CN', {numeric: true}))
+}
+
+const normalizeSaleExpireText = (value: unknown) => normalizeTorrentText(value)
+    .replace(/^[:：,\s-]+/, '')
+    .replace(/[）)\]】。；;,\s]+$/, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+const extractSaleExpireText = (...values: unknown[]) => {
+  const text = values
+      .flatMap(value => Array.isArray(value) ? value : [value])
+      .map(value => normalizeTorrentText(value))
+      .filter(Boolean)
+      .join(' ')
+  if (!text) {
+    return ''
+  }
+
+  const datePattern = String.raw`\d{4}\s*[-/.年]\s*\d{1,2}\s*[-/.月]\s*\d{1,2}\s*(?:[日号]?\s*\d{1,2}\s*[:：]\s*\d{2}(?:\s*[:：]\s*\d{2})?)?`
+  const shortDatePattern = String.raw`\d{1,2}\s*[-/.月]\s*\d{1,2}\s*(?:[日号]?\s*\d{1,2}\s*[:：]\s*\d{2})?`
+  const relativePattern = String.raw`(?:\d+(?:\.\d+)?\s*(?:天|日|小时|时|分钟|分|day|days|hour|hours|minute|minutes)\s*)+`
+  const expireHints = String.raw`(?:优惠|免费|促销|折扣|限时|到期|过期|有效期|剩余|还有|expire|expires|until|deadline|left)`
+  const patterns = [
+    new RegExp(`${expireHints}[^\\d]*((${datePattern})|(${relativePattern}))`, 'i'),
+    new RegExp(`(${datePattern})`, 'i'),
+    new RegExp(`${expireHints}[^\\d]*((${shortDatePattern})|(${relativePattern}))`, 'i'),
+  ]
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern)
+    if (match?.[1]) {
+      return normalizeSaleExpireText(match[1])
+    }
+  }
+  return ''
+}
+
+const cleanSaleStatusText = (saleStatus: unknown, saleExpire: string) => {
+  let text = normalizeTorrentText(saleStatus)
+  if (!text) {
+    return saleExpire ? '限时优惠' : ''
+  }
+  if (saleExpire) {
+    text = text.replace(saleExpire, '')
+  }
+  text = text
+      .replace(/\d{4}\s*[-/.年]\s*\d{1,2}\s*[-/.月]\s*\d{1,2}\s*(?:[日号]?\s*\d{1,2}\s*[:：]\s*\d{2}(?:\s*[:：]\s*\d{2})?)?/g, '')
+      .replace(/(?:剩余|还有|left)\s*(?:\d+(?:\.\d+)?\s*(?:天|日|小时|时|分钟|分|day|days|hour|hours|minute|minutes)\s*)+/gi, '')
+      .replace(/(?:优惠|免费|促销|折扣|限时)?(?:到期|到|至|有效期|expires?|until|deadline)\s*(?:时间)?\s*[:：-]?/gi, '')
+      .replace(/[()（）【】\[\]]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+  return text || (saleExpire ? '限时优惠' : '')
 }
 
 const torrentSaleOptions = computed(() => getUniqueTorrentValues(
@@ -1263,6 +1387,13 @@ const torrentTagOptions = computed(() => getUniqueTorrentValues(
 
 type TorrentFilterType = 'sale' | 'category' | 'tag'
 
+const torrentSortOptions: Array<{ key: string; label: string; defaultOrder: 'ascend' | 'descend' }> = [
+  {key: 'seeders', label: '做种人数', defaultOrder: 'descend'},
+  {key: 'size', label: '大小', defaultOrder: 'descend'},
+  {key: 'title', label: '标题', defaultOrder: 'ascend'},
+  {key: 'sale_status', label: '优惠', defaultOrder: 'ascend'},
+]
+
 const toggleTorrentFilter = (type: TorrentFilterType, value: string) => {
   const target = type === 'sale'
       ? torrentSaleFilter
@@ -1275,6 +1406,16 @@ const toggleTorrentFilter = (type: TorrentFilterType, value: string) => {
   syncSelectionToCurrentFilter()
 }
 
+const clearTorrentFilter = (type: TorrentFilterType) => {
+  const target = type === 'sale'
+      ? torrentSaleFilter
+      : type === 'category'
+          ? torrentCategoryFilter
+          : torrentTagFilter
+  target.value = []
+  syncSelectionToCurrentFilter()
+}
+
 const setTorrentSort = (key: string, defaultOrder: 'ascend' | 'descend' = 'descend') => {
   if (torrentSortKey.value === key) {
     torrentSortOrder.value = torrentSortOrder.value === 'ascend' ? 'descend' : 'ascend'
@@ -1283,6 +1424,10 @@ const setTorrentSort = (key: string, defaultOrder: 'ascend' | 'descend' = 'desce
   torrentSortKey.value = key
   torrentSortOrder.value = defaultOrder
 }
+
+const getTorrentFilterLabel = (label: string, values: string[]) => values.length > 0
+    ? `${label}（${values.length}）`
+    : label
 
 const getTorrentSortLabel = () => {
   const labels: Record<string, string> = {
@@ -1414,11 +1559,15 @@ const pushSelectedDownloader = computed(() => {
 
 const pushIsQb = computed(() => String(pushSelectedDownloader.value?.category || '').toLowerCase().includes('qb'))
 
+const pushDefaultTags = computed(() => getUniqueTorrentValues([
+  siteInfo.value?.name || '',
+  'harvest-monkey',
+].map(tag => normalizeTorrentText(tag))))
+
 const pushAvailableTags = computed(() => {
   return getUniqueTorrentValues([
     ...selectedTorrents.value.flatMap((torrent: ExtractedTorrent) => torrent.tags || []),
-    siteInfo.value?.name || '',
-    'harvest-monkey',
+    ...pushDefaultTags.value,
   ].map(tag => normalizeTorrentText(tag)))
 })
 
@@ -1479,6 +1628,23 @@ const clearTorrentFilters = () => {
   syncSelectionToCurrentFilter()
 }
 
+const handleTorrentSelectionMenu = ({key}: { key: string }) => {
+  switch (key) {
+    case 'current':
+      syncSelectionToCurrentFilter()
+      break
+    case 'all':
+      selectAllTorrents()
+      break
+    case 'invert':
+      invertVisibleTorrents()
+      break
+    case 'clear':
+      clearTorrentSelection()
+      break
+  }
+}
+
 const prepareTorrentPush = async () => {
   if (selectedTorrentKeys.value.length <= 0) {
     syncSelectionToCurrentFilter()
@@ -1531,7 +1697,9 @@ const handleDownloaderPanelChange = async (key: number | string | Array<number |
 const resetPushSheetState = () => {
   pushSavePath.value = ''
   pushSelectedCategory.value = null
-  pushSelectedTags.value = pushAvailableTags.value
+  pushSelectedTags.value = selectedTorrents.value.length > 1
+      ? pushDefaultTags.value
+      : pushAvailableTags.value
   pushCustomTag.value = ''
   pushPaused.value = false
   pushAdvancedExpanded.value = false
@@ -1678,7 +1846,7 @@ async function get_torrent_list() {
           progress: evaluateValue(row, siteInfo.value.torrent_progress_rule),
           hr: evaluateValue(row, siteInfo.value.torrent_hr_rule),
           sale_status: evaluateDisplayValue(row, siteInfo.value.torrent_sale_rule),
-          sale_expire: evaluateValue(row, siteInfo.value.torrent_sale_expire_rule),
+          sale_expire: evaluateDisplayValue(row, siteInfo.value.torrent_sale_expire_rule),
           published: evaluateValue(row, siteInfo.value.torrent_release_rule),
           seeders: evaluateValue(row, siteInfo.value.torrent_seeders_rule),
           leechers: evaluateValue(row, siteInfo.value.torrent_leechers_rule),
@@ -1709,7 +1877,7 @@ async function get_torrent_detail() {
     size: evaluateValue(document, siteInfo.value.detail_size_rule),
     category: evaluateDisplayValue(document, siteInfo.value.detail_category_rule),
     hr: evaluateValue(document, siteInfo.value.detail_hr_rule),
-    sale_expire: evaluateValue(document, siteInfo.value.detail_free_expire_rule),
+    sale_expire: evaluateDisplayValue(document, siteInfo.value.detail_free_expire_rule),
     sale_status: evaluateDisplayValue(document, siteInfo.value.detail_free_rule),
     douban_url: evaluateValue(document, siteInfo.value.detail_douban_rule),
     imdb_url: evaluateValue(document, siteInfo.value.detail_imdb_rule),
@@ -1872,6 +2040,8 @@ const getModalContainer = (id: string = 'modal-container') => {
   // 你也可以在 shadow DOM 中放一个 div#modal-container
   return shadowRoot || document.body
 }
+
+const getPopupContainer = () => getModalContainer()
 </script>
 
 <template>
@@ -1993,18 +2163,7 @@ const getModalContainer = (id: string = 'modal-container') => {
         <template #icon>
           <ArrowDownOutlined/>
         </template>
-        下载全部
-      </a-button>
-      <a-button
-          v-if="torrent_list_page &&  (downloaders?.length || 0)  > 0  && mySiteId > 0" block
-          class="harvest-action"
-          size="small" type="text"
-          @click="download_free"
-      >
-        <template #icon>
-          <DownloadOutlined/>
-        </template>
-        下载免费
+        下载种子
       </a-button>
       <!--        <a-button-->
       <!--            size="small" block-->
@@ -2047,14 +2206,14 @@ const getModalContainer = (id: string = 'modal-container') => {
       <!--          复制链接-->
       <!--        </a-button>-->
       <a-button
-          v-if="torrent_detail_page &&  (downloaders?.length || 0)  > 0  && mySiteId > 0" block
+          v-if="torrent_detail_page && mySiteId > 0" block
           class="harvest-action"
           size="small" type="text"
           @click="download_to">
         <template #icon>
           <DownloadOutlined/>
         </template>
-        下载到...
+        下载种子
       </a-button>
       <a-button
           v-if="torrent_detail_repeat && mySiteId > 0" block
@@ -2077,253 +2236,344 @@ const getModalContainer = (id: string = 'modal-container') => {
     <a-modal
         v-model:visible="open"
         :bodyStyle="{ padding: 0 }"
+        :closable="false"
         :get-container="getModalContainer"
         :title="modal_title"
         :width="760"
         wrap-class-name="harvest-modal-wrap torrent-modal-wrap"
-        @ok="handleOk"
     >
-      <div class="torrent-push-panel">
-        <a-card class="torrent-section-card" size="small" title="种子列表">
-          <div v-if="torrents.length > 1" class="torrent-toolbar">
-            <a-input
-                v-model:value="torrentSearchKey"
-                allow-clear
-                class="torrent-search"
-                placeholder="搜索标题 / 副标题"
-                size="middle"
-            >
-              <template #prefix>
-                <SearchOutlined/>
-              </template>
-            </a-input>
-
-            <div class="torrent-toolbar-meta">
-              <div class="torrent-count">
-                共 {{ torrents.length }} 条，当前 {{ filteredTorrents.length }} 条，可推送 {{ pushableFilteredTorrents.length }} 条，已选 {{ selectedTorrents.length }} 条
-              </div>
-              <a-button
-                  :disabled="selectedTorrents.length <= 0 && pushableFilteredTorrents.length <= 0"
-                  size="small"
-                  type="primary"
-                  @click="prepareTorrentPush"
-              >
-                推送已选
-              </a-button>
-            </div>
-
-            <div class="torrent-filter-panel">
-              <div class="torrent-selection-group">
-                <span class="torrent-control-label">选择</span>
-                <a-button ghost size="small" type="primary" @click="syncSelectionToCurrentFilter">
-                  <template #icon>
-                    <CheckSquareOutlined/>
-                  </template>
-                  选择当前
-                </a-button>
-                <a-button size="small" @click="selectAllTorrents">全选所有</a-button>
-                <a-button size="small" @click="invertVisibleTorrents">反选当前</a-button>
-                <a-button danger size="small" type="text" @click="clearTorrentSelection">清空</a-button>
-              </div>
-              <div class="torrent-chip-section">
-                <div class="torrent-chip-title">排序</div>
-                <div class="torrent-chip-row">
-                  <button
-                      :class="{ active: torrentSortKey === 'seeders' }"
-                      class="torrent-chip"
-                      type="button"
-                      @click="setTorrentSort('seeders')">
-                    做种人数{{ torrentSortKey === 'seeders' ? (torrentSortOrder === 'ascend' ? '↑' : '↓') : '' }}
-                  </button>
-                  <button
-                      :class="{ active: torrentSortKey === 'size' }"
-                      class="torrent-chip"
-                      type="button"
-                      @click="setTorrentSort('size')">
-                    大小{{ torrentSortKey === 'size' ? (torrentSortOrder === 'ascend' ? '↑' : '↓') : '' }}
-                  </button>
-                  <button
-                      :class="{ active: torrentSortKey === 'title' }"
-                      class="torrent-chip"
-                      type="button"
-                      @click="setTorrentSort('title', 'ascend')">
-                    标题{{ torrentSortKey === 'title' ? (torrentSortOrder === 'ascend' ? '↑' : '↓') : '' }}
-                  </button>
-                  <button
-                      :class="{ active: torrentSortKey === 'sale_status' }"
-                      class="torrent-chip"
-                      type="button"
-                      @click="setTorrentSort('sale_status', 'ascend')">
-                    优惠{{ torrentSortKey === 'sale_status' ? (torrentSortOrder === 'ascend' ? '↑' : '↓') : '' }}
-                  </button>
-                </div>
-              </div>
-              <div v-if="torrentSaleOptions.length > 0" class="torrent-chip-section">
-                <div class="torrent-chip-title">优惠状态</div>
-                <div class="torrent-chip-row">
-                  <button
-                      :class="{ active: torrentSaleFilter.length === 0 }"
-                      class="torrent-chip"
-                      type="button"
-                      @click="torrentSaleFilter = []; syncSelectionToCurrentFilter()">
-                    全部
-                  </button>
-                  <button
-                      v-for="sale in torrentSaleOptions"
-                      :key="sale"
-                      :class="{ active: torrentSaleFilter.includes(sale) }"
-                      class="torrent-chip sale"
-                      type="button"
-                      @click="toggleTorrentFilter('sale', sale)">
-                    {{ sale }}
-                  </button>
-                </div>
-              </div>
-              <div v-if="torrentCategoryOptions.length > 0" class="torrent-chip-section">
-                <div class="torrent-chip-title">种子分类</div>
-                <div class="torrent-chip-row">
-                  <button
-                      :class="{ active: torrentCategoryFilter.length === 0 }"
-                      class="torrent-chip"
-                      type="button"
-                      @click="torrentCategoryFilter = []; syncSelectionToCurrentFilter()">
-                    全部
-                  </button>
-                  <button
-                      v-for="category in torrentCategoryOptions"
-                      :key="category"
-                      :class="{ active: torrentCategoryFilter.includes(category) }"
-                      class="torrent-chip"
-                      type="button"
-                      @click="toggleTorrentFilter('category', category)">
-                    {{ category }}
-                  </button>
-                </div>
-              </div>
-              <div v-if="torrentTagOptions.length > 0" class="torrent-chip-section">
-                <div class="torrent-chip-title">种子标签</div>
-                <div class="torrent-chip-row">
-                  <button
-                      :class="{ active: torrentTagFilter.length === 0 }"
-                      class="torrent-chip"
-                      type="button"
-                      @click="torrentTagFilter = []; syncSelectionToCurrentFilter()">
-                    全部
-                  </button>
-                  <button
-                      v-for="tag in torrentTagOptions"
-                      :key="tag"
-                      :class="{ active: torrentTagFilter.includes(tag) }"
-                      class="torrent-chip tag"
-                      type="button"
-                      @click="toggleTorrentFilter('tag', tag)">
-                    {{ tag }}
-                  </button>
-                </div>
-              </div>
-              <div class="torrent-filter-summary">
-                <span>排序：{{ getTorrentSortLabel() }}{{ torrentSortOrder === 'ascend' ? '↑' : '↓' }}</span>
-                <span v-if="torrentSaleFilter.length > 0">优惠：{{ torrentSaleFilter.join('、') }}</span>
-                <span v-if="torrentCategoryFilter.length > 0">分类：{{ torrentCategoryFilter.join('、') }}</span>
-                <span v-if="torrentTagFilter.length > 0">标签：{{ torrentTagFilter.join('、') }}</span>
-                <a-button
-                    v-if="torrentSearchKey || torrentSaleFilter.length > 0 || torrentCategoryFilter.length > 0 || torrentTagFilter.length > 0"
-                    size="small"
-                    type="link"
-                    @click="clearTorrentFilters">
-                  重置
-                </a-button>
-              </div>
-            </div>
+      <template #footer>
+        <div class="torrent-list-action-bar">
+          <div class="torrent-list-action-summary">
+            已选 {{ selectedTorrents.length }} / 可推送 {{ pushableFilteredTorrents.length }}
           </div>
-
-          <a-tooltip v-else :title="getPreparedTorrentIds()[0]">
-            <a-alert :message="singleTorrent?.subtitle || getTorrentCardTitle(torrents[0] || {})"
-                     class="torrent-single-alert"></a-alert>
-          </a-tooltip>
-          <div v-if="torrents.length <= 1" class="torrent-single-actions">
+          <div class="torrent-list-action-buttons">
+            <a-button class="torrent-list-cancel-button" @click="handleOk">关闭</a-button>
+            <a-dropdown
+                :get-popup-container="getPopupContainer"
+                :trigger="['click']"
+                overlay-class-name="torrent-selection-dropdown"
+                placement="topRight">
+              <template #overlay>
+                <a-menu @click="handleTorrentSelectionMenu">
+                  <a-menu-item key="current" :disabled="pushableFilteredTorrents.length <= 0">
+                    选择当前
+                  </a-menu-item>
+                  <a-menu-item key="all" :disabled="torrents.length <= 0">
+                    全选所有
+                  </a-menu-item>
+                  <a-menu-item key="invert" :disabled="pushableFilteredTorrents.length <= 0">
+                    反选当前
+                  </a-menu-item>
+                  <a-menu-divider/>
+                  <a-menu-item key="clear" :disabled="selectedTorrentKeys.length <= 0">
+                    清空
+                  </a-menu-item>
+                </a-menu>
+              </template>
+              <a-button class="torrent-list-select-button">
+                <template #icon>
+                  <CheckSquareOutlined/>
+                </template>
+                选择
+                <ArrowDownOutlined/>
+              </a-button>
+            </a-dropdown>
             <a-button
                 :disabled="selectedTorrents.length <= 0 && pushableFilteredTorrents.length <= 0"
-                size="small"
+                class="torrent-list-submit-button"
                 type="primary"
                 @click="prepareTorrentPush"
             >
-              推送当前种子
+              <template #icon>
+                <SendOutlined/>
+              </template>
+              {{ torrents.length > 1 ? '推送已选' : '推送当前种子' }}（{{ selectedTorrents.length }}）
             </a-button>
           </div>
+        </div>
+      </template>
+      <div class="torrent-push-panel">
+        <div v-if="torrents.length > 1" class="torrent-toolbar">
+          <a-input
+              v-model:value="torrentSearchKey"
+              allow-clear
+              class="torrent-search"
+              placeholder="搜索标题 / 副标题"
+              size="middle"
+          >
+            <template #prefix>
+              <SearchOutlined/>
+            </template>
+          </a-input>
 
-          <div class="torrent-card-list">
-            <a-empty v-if="filteredTorrents.length <= 0" description="没有符合条件的种子"/>
-            <a-card
-                v-for="torrent in filteredTorrents"
-                :key="torrent.key"
-                :class="{
+          <div class="torrent-toolbar-meta">
+            <div class="torrent-count">
+              共 {{ torrents.length }} 条，当前 {{ filteredTorrents.length }} 条，可推送 {{ pushableFilteredTorrents.length }} 条，已选 {{ selectedTorrents.length }} 条
+            </div>
+          </div>
+
+          <div class="torrent-filter-panel">
+            <div class="torrent-filter-label">筛选</div>
+            <a-popover
+                :get-popup-container="getPopupContainer"
+                overlay-class-name="torrent-filter-popover"
+                trigger="click"
+                placement="bottomLeft">
+              <template #content>
+                <div class="torrent-popover-card">
+                  <div class="torrent-popover-title">排序</div>
+                  <div class="torrent-popover-options">
+                    <button
+                        v-for="option in torrentSortOptions"
+                        :key="option.key"
+                        :class="{ active: torrentSortKey === option.key }"
+                        class="torrent-popover-option"
+                        type="button"
+                        @click="setTorrentSort(option.key, option.defaultOrder)">
+                      {{ option.label }}
+                    </button>
+                  </div>
+                  <div class="torrent-popover-title secondary">方向</div>
+                  <div class="torrent-popover-options two">
+                    <button
+                        :class="{ active: torrentSortOrder === 'descend' }"
+                        class="torrent-popover-option"
+                        type="button"
+                        @click="torrentSortOrder = 'descend'">
+                      降序
+                    </button>
+                    <button
+                        :class="{ active: torrentSortOrder === 'ascend' }"
+                        class="torrent-popover-option"
+                        type="button"
+                        @click="torrentSortOrder = 'ascend'">
+                      升序
+                    </button>
+                  </div>
+                </div>
+              </template>
+              <a-button size="small">
+                排序：{{ getTorrentSortLabel() }}{{ torrentSortOrder === 'ascend' ? '↑' : '↓' }}
+                <ArrowDownOutlined/>
+              </a-button>
+            </a-popover>
+
+            <a-popover
+                :get-popup-container="getPopupContainer"
+                overlay-class-name="torrent-filter-popover"
+                trigger="click"
+                placement="bottomLeft">
+              <template #content>
+                <div class="torrent-popover-card">
+                  <div class="torrent-popover-head">
+                    <div class="torrent-popover-title">优惠</div>
+                    <a-button size="small" type="link" @click="clearTorrentFilter('sale')">全部</a-button>
+                  </div>
+                  <div class="torrent-popover-options">
+                    <button
+                        v-for="sale in torrentSaleOptions"
+                        :key="sale"
+                        :class="{ active: torrentSaleFilter.includes(sale) }"
+                        class="torrent-popover-option"
+                        type="button"
+                        @click="toggleTorrentFilter('sale', sale)">
+                      {{ sale }}
+                    </button>
+                  </div>
+                </div>
+              </template>
+              <a-button :disabled="torrentSaleOptions.length <= 0" size="small">
+                {{ getTorrentFilterLabel('优惠', torrentSaleFilter) }}
+                <ArrowDownOutlined/>
+              </a-button>
+            </a-popover>
+
+            <a-popover
+                :get-popup-container="getPopupContainer"
+                overlay-class-name="torrent-filter-popover"
+                trigger="click"
+                placement="bottomLeft">
+              <template #content>
+                <div class="torrent-popover-card">
+                  <div class="torrent-popover-head">
+                    <div class="torrent-popover-title">分类</div>
+                    <a-button size="small" type="link" @click="clearTorrentFilter('category')">全部</a-button>
+                  </div>
+                  <div class="torrent-popover-options">
+                    <button
+                        v-for="category in torrentCategoryOptions"
+                        :key="category"
+                        :class="{ active: torrentCategoryFilter.includes(category) }"
+                        class="torrent-popover-option"
+                        type="button"
+                        @click="toggleTorrentFilter('category', category)">
+                      {{ category }}
+                    </button>
+                  </div>
+                </div>
+              </template>
+              <a-button :disabled="torrentCategoryOptions.length <= 0" size="small">
+                {{ getTorrentFilterLabel('分类', torrentCategoryFilter) }}
+                <ArrowDownOutlined/>
+              </a-button>
+            </a-popover>
+
+            <a-popover
+                :get-popup-container="getPopupContainer"
+                overlay-class-name="torrent-filter-popover"
+                trigger="click"
+                placement="bottomLeft">
+              <template #content>
+                <div class="torrent-popover-card">
+                  <div class="torrent-popover-head">
+                    <div class="torrent-popover-title">标签</div>
+                    <a-button size="small" type="link" @click="clearTorrentFilter('tag')">全部</a-button>
+                  </div>
+                  <div class="torrent-popover-options">
+                    <button
+                        v-for="tag in torrentTagOptions"
+                        :key="tag"
+                        :class="{ active: torrentTagFilter.includes(tag) }"
+                        class="torrent-popover-option"
+                        type="button"
+                        @click="toggleTorrentFilter('tag', tag)">
+                      {{ tag }}
+                    </button>
+                  </div>
+                </div>
+              </template>
+              <a-button :disabled="torrentTagOptions.length <= 0" size="small">
+                {{ getTorrentFilterLabel('标签', torrentTagFilter) }}
+                <ArrowDownOutlined/>
+              </a-button>
+            </a-popover>
+
+            <div class="torrent-filter-summary">
+              <span v-if="torrentSaleFilter.length > 0">优惠：{{ torrentSaleFilter.join('、') }}</span>
+              <span v-if="torrentCategoryFilter.length > 0">分类：{{ torrentCategoryFilter.join('、') }}</span>
+              <span v-if="torrentTagFilter.length > 0">标签：{{ torrentTagFilter.join('、') }}</span>
+              <a-button
+                  v-if="torrentSearchKey || torrentSaleFilter.length > 0 || torrentCategoryFilter.length > 0 || torrentTagFilter.length > 0"
+                  size="small"
+                  type="link"
+                  @click="clearTorrentFilters">
+                重置
+              </a-button>
+            </div>
+          </div>
+        </div>
+
+        <a-tooltip v-else :title="getPreparedTorrentIds()[0]">
+          <a-alert :message="singleTorrent?.subtitle || getTorrentCardTitle(torrents[0] || {})"
+                   class="torrent-single-alert"></a-alert>
+        </a-tooltip>
+
+        <div class="torrent-card-list">
+          <a-empty v-if="filteredTorrents.length <= 0" description="没有符合条件的种子"/>
+          <a-card
+              v-for="torrent in filteredTorrents"
+              :key="torrent.key"
+              :class="{
                   selected: selectedTorrentKeys.includes(torrent.key),
                   disabled: !hasPushableTorrentUrl(torrent),
                 }"
-                class="torrent-card"
-                size="small"
-                @click="toggleTorrentSelection(torrent)"
-            >
-              <div class="torrent-card-row">
-                <a-checkbox
-                    :checked="selectedTorrentKeys.includes(torrent.key)"
-                    :disabled="!hasPushableTorrentUrl(torrent)"
-                    @click.stop
-                    @change="toggleTorrentSelection(torrent)"/>
-                <div class="torrent-card-main">
-                  <div class="torrent-card-head">
-                    <div class="torrent-card-title">{{ getTorrentCardTitle(torrent) }}</div>
-                    <a-tag v-if="torrent.sale_status" class="torrent-sale-tag" color="green">{{ torrent.sale_status }}</a-tag>
-                  </div>
-                  <div v-if="torrent.subtitle" class="torrent-card-subtitle">{{ torrent.subtitle }}</div>
-                  <a-space class="torrent-card-tags" size="small" wrap>
-                    <a-tag v-if="torrent.category" color="blue">{{ torrent.category }}</a-tag>
-                    <a-tag v-for="tag in getTorrentTags(torrent).slice(0, 6)" :key="`${torrent.key}-${tag}`" color="purple">{{ tag }}</a-tag>
-                  </a-space>
-                  <div class="torrent-card-stats">
-                    <span v-if="torrent.size">大小 {{ torrent.size }}</span>
-                    <span v-if="torrent.seeders">做种 {{ torrent.seeders }}</span>
-                    <span v-if="torrent.leechers">下载 {{ torrent.leechers }}</span>
-                    <span v-if="torrent.completers">完成 {{ torrent.completers }}</span>
-                    <span v-if="torrent.sale_expire">优惠到 {{ torrent.sale_expire }}</span>
-                    <span v-if="!hasPushableTorrentUrl(torrent)" class="torrent-card-warning">缺少可用链接</span>
-                  </div>
+              class="torrent-card"
+              size="small"
+              @click="toggleTorrentSelection(torrent)"
+          >
+            <div class="torrent-card-row">
+              <div class="torrent-card-main">
+                <div class="torrent-card-head">
+                  <div class="torrent-card-title">{{ getTorrentCardTitle(torrent) }}</div>
+                  <a-tag v-if="torrent.sale_status" class="torrent-sale-tag" color="green">{{ torrent.sale_status }}</a-tag>
                 </div>
-                <a-button
-                    :disabled="!hasPushableTorrentUrl(torrent)"
-                    ghost
-                    size="small"
-                    type="primary"
-                    @click.stop="selectedTorrentKeys = [torrent.key]; prepareTorrentPush()">
-                  <template #icon>
-                    <SendOutlined/>
-                  </template>
-                </a-button>
+                <div v-if="torrent.subtitle" class="torrent-card-subtitle">{{ torrent.subtitle }}</div>
+                <a-space class="torrent-card-tags" size="small" wrap>
+                  <a-tag v-if="torrent.category" color="blue">{{ torrent.category }}</a-tag>
+                  <a-tag v-for="tag in getTorrentTags(torrent).slice(0, 6)" :key="`${torrent.key}-${tag}`" color="purple">{{ tag }}</a-tag>
+                </a-space>
+                <div class="torrent-card-stats">
+                  <span v-if="torrent.size" class="torrent-stat-pill size">
+                    <span class="torrent-stat-label">大小</span>
+                    <strong>{{ torrent.size }}</strong>
+                  </span>
+                  <span v-if="torrent.seeders" class="torrent-stat-pill seeders">
+                    <span class="torrent-stat-label">做种</span>
+                    <strong>{{ torrent.seeders }}</strong>
+                  </span>
+                  <span v-if="torrent.leechers" class="torrent-stat-pill leechers">
+                    <span class="torrent-stat-label">下载</span>
+                    <strong>{{ torrent.leechers }}</strong>
+                  </span>
+                  <span v-if="torrent.completers" class="torrent-stat-pill completers">
+                    <span class="torrent-stat-label">完成</span>
+                    <strong>{{ torrent.completers }}</strong>
+                  </span>
+                  <span v-if="torrent.sale_expire" class="torrent-stat-pill expire">
+                    <span class="torrent-stat-label">优惠到</span>
+                    <strong>{{ torrent.sale_expire }}</strong>
+                  </span>
+                  <span v-if="!hasPushableTorrentUrl(torrent)" class="torrent-card-warning">缺少可用链接</span>
+                </div>
               </div>
-            </a-card>
-          </div>
-        </a-card>
-
+              <a-button
+                  :disabled="!hasPushableTorrentUrl(torrent)"
+                  ghost
+                  size="small"
+                  type="primary"
+                  @click.stop="selectedTorrentKeys = [torrent.key]; prepareTorrentPush()">
+                <template #icon>
+                  <SendOutlined/>
+                </template>
+              </a-button>
+            </div>
+          </a-card>
+        </div>
       </div>
     </a-modal>
     <a-modal
         v-model:visible="pushModalVisible"
         :bodyStyle="{ padding: 0 }"
+        :closable="false"
         :confirm-loading="pushSubmitting"
         :get-container="getModalContainer"
-        :ok-button-props="{ disabled: selectedTorrents.length <= 0 || !pushSelectedDownloader }"
         :width="760"
-        cancel-text="取消"
-        ok-text="下载"
         wrap-class-name="harvest-modal-wrap torrent-push-modal-wrap"
         @cancel="downloaderPanelVisible = false"
-        @ok="submitPushSheet"
     >
+      <template #footer>
+        <div class="push-action-bar">
+          <div class="push-action-summary">
+            {{ selectedTorrents.length }} 个任务 · {{ pushSelectedDownloader?.name || '未选择下载器' }}
+          </div>
+          <div class="push-action-buttons">
+            <a-button class="push-cancel-button" @click="pushModalVisible = false; downloaderPanelVisible = false">
+              取消
+            </a-button>
+            <a-button
+                :disabled="selectedTorrents.length <= 0 || !pushSelectedDownloader"
+                :loading="pushSubmitting"
+                class="push-submit-button"
+                type="primary"
+                @click="submitPushSheet">
+              <template #icon>
+                <SendOutlined/>
+              </template>
+              下载
+            </a-button>
+          </div>
+        </div>
+      </template>
       <div class="push-sheet">
         <div class="push-sheet-header">
-          <div class="push-sheet-title">添加种子</div>
-          <a-tag :color="pushIsQb ? 'blue' : 'orange'">
+          <div class="push-sheet-title-block">
+            <div class="push-sheet-title">添加种子</div>
+            <div class="push-sheet-subtitle">
+              {{ selectedTorrents.length }} 个任务 · {{ pushSavePath || '未设置保存路径' }}
+            </div>
+          </div>
+          <a-tag class="push-provider-tag" :color="pushIsQb ? 'blue' : 'orange'">
             {{ pushIsQb ? 'qBittorrent' : 'Transmission' }}
           </a-tag>
         </div>
@@ -2362,13 +2612,30 @@ const getModalContainer = (id: string = 'modal-container') => {
                   {{ selectedTorrentPreview.subtitle }}
                 </div>
                 <div class="push-torrent-meta">
-                  <span v-if="selectedTorrentPreview.size">{{ selectedTorrentPreview.size }}</span>
-                  <span v-if="selectedTorrentPreview.seeders">↑ {{ selectedTorrentPreview.seeders }}</span>
-                  <span v-if="selectedTorrentPreview.leechers">↓ {{ selectedTorrentPreview.leechers }}</span>
-                  <span v-if="selectedTorrentPreview.completers">✓ {{ selectedTorrentPreview.completers }}</span>
-                  <span>{{ siteInfo?.name || selectedTorrentPreview.site_id }}</span>
-                  <span v-if="selectedTorrentPreview.category">{{ selectedTorrentPreview.category }}</span>
-                  <span v-if="selectedTorrentPreview.sale_status">{{ selectedTorrentPreview.sale_status }}</span>
+                  <span v-if="selectedTorrentPreview.size" class="push-meta-pill size">
+                    <span>大小</span><strong>{{ selectedTorrentPreview.size }}</strong>
+                  </span>
+                  <span v-if="selectedTorrentPreview.seeders" class="push-meta-pill seeders">
+                    <span>做种</span><strong>{{ selectedTorrentPreview.seeders }}</strong>
+                  </span>
+                  <span v-if="selectedTorrentPreview.leechers" class="push-meta-pill leechers">
+                    <span>下载</span><strong>{{ selectedTorrentPreview.leechers }}</strong>
+                  </span>
+                  <span v-if="selectedTorrentPreview.completers" class="push-meta-pill completers">
+                    <span>完成</span><strong>{{ selectedTorrentPreview.completers }}</strong>
+                  </span>
+                  <span class="push-meta-pill site">
+                    <span>站点</span><strong>{{ siteInfo?.name || selectedTorrentPreview.site_id }}</strong>
+                  </span>
+                  <span v-if="selectedTorrentPreview.category" class="push-meta-pill category">
+                    <span>分类</span><strong>{{ selectedTorrentPreview.category }}</strong>
+                  </span>
+                  <span v-if="selectedTorrentPreview.sale_status" class="push-meta-pill sale">
+                    <span>优惠</span><strong>{{ selectedTorrentPreview.sale_status }}</strong>
+                  </span>
+                  <span v-if="selectedTorrentPreview.sale_expire" class="push-meta-pill expire">
+                    <span>到期</span><strong>{{ selectedTorrentPreview.sale_expire }}</strong>
+                  </span>
                 </div>
                 <div v-if="getTorrentTags(selectedTorrentPreview).length > 0" class="push-tag-row">
                   <span
@@ -2380,12 +2647,20 @@ const getModalContainer = (id: string = 'modal-container') => {
                 </div>
               </div>
             </div>
-            <a-textarea
-                v-else
-                :value="url_list.join('\n')"
-                class="push-url-textarea"
-                readonly
-                :rows="4"/>
+            <div v-else class="push-batch-preview">
+              <div class="push-file-icon">
+                <DownloadOutlined/>
+              </div>
+              <div class="push-torrent-main">
+                <div class="push-torrent-title">批量添加 {{ selectedTorrents.length }} 个种子</div>
+                <div class="push-torrent-subtitle">将按当前选择列表推送到下载器</div>
+                <a-textarea
+                    :value="url_list.join('\n')"
+                    class="push-url-textarea"
+                    readonly
+                    :rows="3"/>
+              </div>
+            </div>
           </section>
 
           <section class="push-sheet-section">
@@ -2403,6 +2678,7 @@ const getModalContainer = (id: string = 'modal-container') => {
             </div>
             <a-input
                 v-model:value="pushSavePath"
+                class="push-path-input"
                 placeholder="/downloads"
                 size="small"/>
           </section>
@@ -2430,9 +2706,10 @@ const getModalContainer = (id: string = 'modal-container') => {
             </div>
           </section>
 
-          <section class="push-sheet-section compact">
+          <section class="push-sheet-section compact push-pause-section">
             <div>
               <div class="push-sheet-section-title">暂停下载</div>
+              <div class="push-sheet-section-hint">添加任务后先保持暂停状态</div>
             </div>
             <a-switch v-model:checked="pushPaused" size="small"/>
           </section>
@@ -2440,7 +2717,7 @@ const getModalContainer = (id: string = 'modal-container') => {
           <section class="push-sheet-section">
             <button class="push-advanced-toggle" type="button" @click="pushAdvancedExpanded = !pushAdvancedExpanded">
               <span>高级选项</span>
-              <span>{{ pushAdvancedExpanded ? '收起' : '展开' }}</span>
+              <span class="push-advanced-state">{{ pushAdvancedExpanded ? '收起' : '展开' }}</span>
             </button>
             <div v-if="pushAdvancedExpanded" class="push-advanced-panel">
               <div class="push-option-group">
@@ -2523,14 +2800,24 @@ const getModalContainer = (id: string = 'modal-container') => {
                 </div>
                 <label class="push-inline-field">
                   <span>停止条件</span>
-                  <a-select v-model:value="pushStopCondition" allow-clear placeholder="不自动停止" size="small">
+                  <a-select
+                      v-model:value="pushStopCondition"
+                      :get-popup-container="getPopupContainer"
+                      allow-clear
+                      placeholder="不自动停止"
+                      size="small">
                     <a-select-option value="MetadataReceived">收到元数据后</a-select-option>
                     <a-select-option value="FilesChecked">文件校验后</a-select-option>
                   </a-select>
                 </label>
                 <label class="push-inline-field">
                   <span>分享限制</span>
-                  <a-select v-model:value="pushShareLimitAction" allow-clear placeholder="使用默认" size="small">
+                  <a-select
+                      v-model:value="pushShareLimitAction"
+                      :get-popup-container="getPopupContainer"
+                      allow-clear
+                      placeholder="使用默认"
+                      size="small">
                     <a-select-option value="Stop">停止</a-select-option>
                     <a-select-option value="Remove">移除</a-select-option>
                     <a-select-option value="RemoveWithContent">移除并删除</a-select-option>
@@ -2732,9 +3019,34 @@ const getModalContainer = (id: string = 'modal-container') => {
   transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
 
+.harvest-img :deep(.ant-avatar img) {
+  animation: harvest-avatar-spin 12s linear infinite;
+  transform-origin: center;
+}
+
+.harvest-wrap:hover .harvest-img :deep(.ant-avatar img) {
+  animation-duration: 3s;
+}
+
 .harvest-wrap:hover .harvest-img :deep(.ant-avatar) {
   transform: translateY(-1px);
   box-shadow: 0 10px 26px rgba(15, 23, 42, 0.3), 0 0 0 1px rgba(15, 23, 42, 0.08);
+}
+
+@keyframes harvest-avatar-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .harvest-img :deep(.ant-avatar img) {
+    animation: none;
+  }
 }
 
 /* 左右停靠 */
@@ -2879,54 +3191,44 @@ const getModalContainer = (id: string = 'modal-container') => {
 }
 
 .torrent-push-panel {
+  box-sizing: border-box;
   display: grid;
-  gap: 12px;
+  gap: 8px;
+  width: 100%;
+  max-width: 100%;
   max-height: 72vh;
-  overflow: auto;
-  padding: 12px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 10px;
   background: linear-gradient(180deg, #f8fafc 0%, #eef5f8 100%);
 }
 
-.torrent-section-card {
-  overflow: hidden;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
-}
-
-.torrent-section-card :deep(.ant-card-head) {
-  min-height: 38px;
-  border-bottom-color: #edf2f7;
-  background: #ffffff;
-}
-
-.torrent-section-card :deep(.ant-card-head-title) {
-  padding: 8px 0;
-  color: #172033;
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.torrent-section-card :deep(.ant-card-body) {
-  padding: 10px;
-}
-
 .torrent-toolbar {
+  box-sizing: border-box;
   display: grid;
-  gap: 8px;
-  margin-bottom: 10px;
-  padding: 10px;
-  border: 1px solid #e2e8f0;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  align-items: center;
+  gap: 7px 10px;
+  width: 100%;
+  max-width: 100%;
+  margin-bottom: 6px;
+  padding: 9px;
+  border: 1px solid #dbe7ef;
   border-radius: 8px;
   background: #ffffff;
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.04);
 }
 
 .torrent-search {
+  max-width: 100%;
   width: 100%;
 }
 
 .torrent-search :deep(.ant-input-affix-wrapper) {
-  border-radius: 7px;
+  height: 32px;
+  border-color: #dbe7ef;
+  border-radius: 8px;
+  background: #f8fafc;
 }
 
 .torrent-search :deep(.anticon) {
@@ -2935,131 +3237,121 @@ const getModalContainer = (id: string = 'modal-container') => {
 
 .torrent-toolbar-meta {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.torrent-count {
-  color: #475569;
-  font-size: 12px;
-  line-height: 20px;
-}
-
-.torrent-filter-panel {
-  display: grid;
-  gap: 8px;
-}
-
-.torrent-selection-group,
-.torrent-chip-row {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
+  justify-content: flex-end;
   min-width: 0;
 }
 
-.torrent-control-label {
+.torrent-count {
+  padding: 4px 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 11px;
+  line-height: 18px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.torrent-filter-panel {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 8px;
+  border: 1px solid #e6edf5;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #fbfdff 0%, #f8fafc 100%);
+}
+
+.torrent-filter-label {
   flex: 0 0 auto;
+  padding: 0 4px;
   color: #64748b;
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 11px;
+  font-weight: 800;
   line-height: 24px;
+}
+
+.torrent-filter-panel :deep(.ant-btn) {
+  max-width: 170px;
+  height: 26px;
+  padding: 0 9px;
+  overflow: hidden;
+  border-color: #dbe7ef;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #334155;
+  font-size: 12px;
+  line-height: 24px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.torrent-filter-panel :deep(.ant-btn:not(:disabled):hover) {
+  border-color: #93c5fd;
+  background: #eff6ff;
+  color: #0369a1;
 }
 
 .torrent-filter-summary {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 5px;
+  flex: 1 1 100%;
   min-height: 20px;
+  padding-top: 1px;
   color: #64748b;
   font-size: 11px;
-  line-height: 18px;
+  line-height: 16px;
 }
 
 .torrent-filter-summary span {
-  padding: 1px 6px;
-  border-radius: 999px;
-  background: #f1f5f9;
-}
-
-.torrent-chip-section {
-  display: grid;
-  gap: 6px;
-  padding-top: 2px;
-}
-
-.torrent-chip-title {
-  color: #64748b;
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 18px;
-}
-
-.torrent-chip {
-  max-width: 168px;
-  height: 24px;
-  padding: 0 9px;
+  max-width: 180px;
+  padding: 2px 7px;
   overflow: hidden;
   border: 1px solid #dbe7ef;
   border-radius: 999px;
-  background: #f8fafc;
+  background: #ffffff;
   color: #475569;
-  cursor: pointer;
-  font-size: 12px;
-  line-height: 22px;
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
-  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
 }
 
-.torrent-chip:hover {
-  border-color: #93c5fd;
-  background: #eff6ff;
-  color: #0369a1;
-}
-
-.torrent-chip.active {
-  border-color: #2563eb;
-  background: #dbeafe;
-  color: #1d4ed8;
-  font-weight: 700;
-}
-
-.torrent-chip.sale.active {
-  border-color: #10b981;
-  background: #d1fae5;
-  color: #047857;
-}
-
-.torrent-chip.tag.active {
-  border-color: #8b5cf6;
-  background: #ede9fe;
-  color: #6d28d9;
+.torrent-filter-summary :deep(.ant-btn-link) {
+  height: 20px;
+  padding: 0 4px;
+  font-size: 11px;
+  line-height: 20px;
 }
 
 .torrent-single-alert {
   text-align: center !important;
 }
 
-.torrent-single-actions {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 8px;
-}
-
 .torrent-card-list {
+  box-sizing: border-box;
   display: grid;
-  max-height: 360px;
+  width: 100%;
+  max-width: 100%;
+  max-height: 440px;
   margin-top: 0;
+  overflow-x: hidden;
   overflow-y: auto;
-  gap: 8px;
+  gap: 7px;
   padding-right: 2px;
 }
 
 .torrent-card {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   cursor: pointer;
   border: 1px solid #e5edf4;
   border-radius: 7px;
@@ -3138,14 +3430,95 @@ const getModalContainer = (id: string = 'modal-container') => {
 .torrent-card-stats {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 5px;
   margin-top: 8px;
-  color: #4b5563;
-  font-size: 12px;
+}
+
+.torrent-stat-pill {
+  display: inline-flex;
+  align-items: center;
+  max-width: 170px;
+  min-height: 22px;
+  overflow: hidden;
+  border: 1px solid #dbe7ef;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 11px;
+  line-height: 20px;
+  white-space: nowrap;
+}
+
+.torrent-stat-label {
+  flex: 0 0 auto;
+  padding: 0 6px;
+  border-right: 1px solid rgba(148, 163, 184, 0.28);
+  color: #64748b;
+  font-weight: 600;
+}
+
+.torrent-stat-pill strong {
+  min-width: 0;
+  padding: 0 7px;
+  overflow: hidden;
+  color: #172033;
+  font-weight: 800;
+  text-overflow: ellipsis;
+}
+
+.torrent-stat-pill.size {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+}
+
+.torrent-stat-pill.seeders {
+  border-color: #a7f3d0;
+  background: #ecfdf5;
+}
+
+.torrent-stat-pill.seeders strong {
+  color: #047857;
+}
+
+.torrent-stat-pill.leechers {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}
+
+.torrent-stat-pill.leechers strong {
+  color: #1d4ed8;
+}
+
+.torrent-stat-pill.completers {
+  border-color: #ddd6fe;
+  background: #f5f3ff;
+}
+
+.torrent-stat-pill.completers strong {
+  color: #6d28d9;
+}
+
+.torrent-stat-pill.expire {
+  max-width: 220px;
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+.torrent-stat-pill.expire strong {
+  color: #b45309;
 }
 
 .torrent-card-warning {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 7px;
+  border: 1px solid #fecaca;
+  border-radius: 999px;
+  background: #fef2f2;
   color: #dc2626;
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .downloader-push-summary {
@@ -3237,10 +3610,10 @@ const getModalContainer = (id: string = 'modal-container') => {
 .push-sheet {
   display: flex;
   flex-direction: column;
-  height: min(590px, 78vh);
+  height: min(620px, 80vh);
   max-width: 100%;
   overflow-x: hidden;
-  background: #ffffff;
+  background: #f6f8fb;
 }
 
 .push-sheet-header {
@@ -3248,32 +3621,59 @@ const getModalContainer = (id: string = 'modal-container') => {
   align-items: center;
   justify-content: space-between;
   flex-shrink: 0;
-  padding: 10px 14px 8px;
+  gap: 12px;
+  padding: 13px 16px 11px;
   border-bottom: 1px solid #e6edf5;
+  background: #ffffff;
+}
+
+.push-sheet-title-block {
+  min-width: 0;
 }
 
 .push-sheet-title {
   color: #172033;
-  font-size: 16px;
+  font-size: 17px;
   font-weight: 700;
-  line-height: 22px;
+  line-height: 24px;
+}
+
+.push-sheet-subtitle {
+  max-width: 520px;
+  overflow: hidden;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.push-provider-tag {
+  flex-shrink: 0;
+  margin-right: 0;
+  font-weight: 700;
 }
 
 .push-sheet-content {
   display: grid;
   flex: 1;
-  gap: 14px;
+  gap: 10px;
   min-height: 0;
   max-width: 100%;
   overflow-x: hidden;
   overflow-y: auto;
-  padding: 12px 14px;
+  padding: 12px;
 }
 
 .push-sheet-section {
   display: grid;
-  gap: 6px;
+  gap: 8px;
   min-width: 0;
+  padding: 11px 12px;
+  border: 1px solid #e3ebf3;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.04);
 }
 
 .push-sheet-section.compact {
@@ -3289,6 +3689,12 @@ const getModalContainer = (id: string = 'modal-container') => {
   line-height: 18px;
 }
 
+.push-sheet-section-hint {
+  color: #94a3b8;
+  font-size: 11px;
+  line-height: 16px;
+}
+
 .push-sheet-title-row {
   display: flex;
   align-items: center;
@@ -3300,12 +3706,18 @@ const getModalContainer = (id: string = 'modal-container') => {
   width: 160px;
 }
 
+.push-custom-tag :deep(.ant-input),
+.push-path-input :deep(.ant-input),
+.push-url-textarea :deep(.ant-input) {
+  border-radius: 6px;
+}
+
 .push-downloader-list,
 .push-category-list,
 .push-tag-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 7px;
+  gap: 6px;
   min-width: 0;
 }
 
@@ -3313,26 +3725,33 @@ const getModalContainer = (id: string = 'modal-container') => {
   display: flex;
   align-items: center;
   gap: 8px;
-  max-width: 176px;
+  max-width: 188px;
   min-width: 0;
-  padding: 7px 9px;
+  padding: 8px 10px;
   border: 1px solid #dbe7ef;
   border-radius: 8px;
   background: #f8fafc;
   color: #334155;
   cursor: pointer;
   text-align: left;
+  transition: background 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+}
+
+.push-downloader-chip:hover {
+  border-color: #93c5fd;
+  background: #eff6ff;
 }
 
 .push-downloader-chip.active {
   border-color: #2563eb;
   background: #eff6ff;
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.18), 0 6px 14px rgba(37, 99, 235, 0.08);
 }
 
 .push-downloader-chip strong,
 .push-downloader-chip small {
   display: block;
-  max-width: 112px;
+  max-width: 124px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -3354,22 +3773,23 @@ const getModalContainer = (id: string = 'modal-container') => {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 24px;
-  height: 24px;
-  border-radius: 999px;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
   background: #dbeafe;
   color: #1d4ed8;
   font-size: 10px;
   font-weight: 700;
 }
 
-.push-torrent-preview {
+.push-torrent-preview,
+.push-batch-preview {
   display: flex;
   gap: 10px;
   min-width: 0;
-  padding: 9px 10px;
+  padding: 10px;
   border: 1px solid #dfe9f2;
-  border-radius: 10px;
+  border-radius: 8px;
   background: #f8fafc;
 }
 
@@ -3378,11 +3798,12 @@ const getModalContainer = (id: string = 'modal-container') => {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   border-radius: 8px;
   background: #dbeafe;
   color: #2563eb;
+  font-size: 16px;
 }
 
 .push-torrent-main {
@@ -3394,9 +3815,9 @@ const getModalContainer = (id: string = 'modal-container') => {
   display: -webkit-box;
   overflow: hidden;
   color: #172033;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
-  line-height: 18px;
+  line-height: 19px;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
@@ -3415,16 +3836,89 @@ const getModalContainer = (id: string = 'modal-container') => {
   display: flex;
   flex-wrap: wrap;
   gap: 5px;
-  margin-top: 5px;
+  margin-top: 7px;
 }
 
-.push-torrent-meta span,
-.push-tag {
-  max-width: 140px;
-  padding: 2px 6px;
+.push-meta-pill {
+  display: inline-flex;
+  align-items: center;
+  max-width: 176px;
+  min-height: 22px;
   overflow: hidden;
   border: 1px solid #dbe7ef;
-  border-radius: 5px;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #475569;
+  font-size: 10px;
+  line-height: 20px;
+  white-space: nowrap;
+}
+
+.push-meta-pill span {
+  flex: 0 0 auto;
+  padding: 0 6px;
+  border-right: 1px solid rgba(148, 163, 184, 0.28);
+  color: #64748b;
+  font-weight: 700;
+}
+
+.push-meta-pill strong {
+  min-width: 0;
+  padding: 0 7px;
+  overflow: hidden;
+  color: #172033;
+  font-weight: 800;
+  text-overflow: ellipsis;
+}
+
+.push-meta-pill.seeders {
+  border-color: #a7f3d0;
+  background: #ecfdf5;
+}
+
+.push-meta-pill.seeders strong {
+  color: #047857;
+}
+
+.push-meta-pill.leechers,
+.push-meta-pill.site {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}
+
+.push-meta-pill.leechers strong,
+.push-meta-pill.site strong {
+  color: #1d4ed8;
+}
+
+.push-meta-pill.completers,
+.push-meta-pill.category {
+  border-color: #ddd6fe;
+  background: #f5f3ff;
+}
+
+.push-meta-pill.completers strong,
+.push-meta-pill.category strong {
+  color: #6d28d9;
+}
+
+.push-meta-pill.sale,
+.push-meta-pill.expire {
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+.push-meta-pill.sale strong,
+.push-meta-pill.expire strong {
+  color: #b45309;
+}
+
+.push-tag {
+  max-width: 140px;
+  padding: 2px 7px;
+  overflow: hidden;
+  border: 1px solid #dbe7ef;
+  border-radius: 999px;
   background: #ffffff;
   color: #475569;
   font-size: 10px;
@@ -3435,7 +3929,9 @@ const getModalContainer = (id: string = 'modal-container') => {
 }
 
 .push-tag {
+  min-height: 21px;
   cursor: pointer;
+  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
 }
 
 .push-tag.selected,
@@ -3447,10 +3943,10 @@ const getModalContainer = (id: string = 'modal-container') => {
 
 .push-category-chip {
   max-width: 150px;
-  padding: 5px 10px;
+  padding: 5px 11px;
   overflow: hidden;
   border: 1px solid #dbe7ef;
-  border-radius: 6px;
+  border-radius: 999px;
   background: #f8fafc;
   color: #334155;
   cursor: pointer;
@@ -3458,6 +3954,12 @@ const getModalContainer = (id: string = 'modal-container') => {
   line-height: 18px;
   text-overflow: ellipsis;
   white-space: nowrap;
+  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+}
+
+.push-category-chip:hover {
+  border-color: #93c5fd;
+  background: #eff6ff;
 }
 
 .push-category-chip.active {
@@ -3468,8 +3970,13 @@ const getModalContainer = (id: string = 'modal-container') => {
 }
 
 .push-url-textarea {
+  margin-top: 8px;
   max-width: 100%;
   font-size: 12px;
+}
+
+.push-pause-section {
+  background: #fbfdff;
 }
 
 .push-advanced-toggle {
@@ -3480,27 +3987,33 @@ const getModalContainer = (id: string = 'modal-container') => {
   padding: 0;
   border: 0;
   background: transparent;
-  color: #64748b;
+  color: #172033;
   cursor: pointer;
   font-size: 13px;
   font-weight: 700;
   line-height: 20px;
 }
 
+.push-advanced-state {
+  color: #2563eb;
+  font-size: 12px;
+}
+
 .push-advanced-panel {
   display: grid;
-  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
   padding-top: 6px;
 }
 
 .push-option-group {
   display: grid;
-  gap: 7px;
+  gap: 8px;
   min-width: 0;
-  padding: 9px 10px;
+  padding: 10px;
   border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  background: #ffffff;
+  border-radius: 8px;
+  background: #f8fafc;
 }
 
 .push-option-group-title {
@@ -3516,7 +4029,7 @@ const getModalContainer = (id: string = 'modal-container') => {
 .push-layout-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
   max-width: 100%;
 }
@@ -3530,7 +4043,7 @@ const getModalContainer = (id: string = 'modal-container') => {
 .push-layout-row span {
   flex: 0 0 86px;
   color: #475569;
-  font-size: 12px;
+  font-size: 11px;
   line-height: 22px;
 }
 
@@ -3546,16 +4059,6 @@ const getModalContainer = (id: string = 'modal-container') => {
   min-width: 0;
   max-width: 100%;
   white-space: normal;
-}
-
-.push-sheet-footer {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  flex-shrink: 0;
-  gap: 12px;
-  padding: 10px 14px 12px;
-  border-top: 1px solid #e6edf5;
-  background: #f8fafc;
 }
 
 .site-data-panel {
@@ -3714,7 +4217,308 @@ const getModalContainer = (id: string = 'modal-container') => {
   background: #f8fafc;
 }
 
+:global(.torrent-modal-wrap .ant-modal-footer) {
+  padding: 0;
+  border-top: 0;
+  background: #ffffff;
+}
+
+.torrent-list-action-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-top: 1px solid #e6edf5;
+  background: #ffffff;
+}
+
+.torrent-list-action-summary {
+  min-width: 0;
+  padding: 4px 8px;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 18px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.torrent-list-action-buttons {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 8px;
+}
+
+.torrent-list-cancel-button,
+.torrent-list-select-button,
+.torrent-list-submit-button {
+  height: 32px;
+  border-radius: 8px;
+  font-weight: 700;
+}
+
+.torrent-list-cancel-button,
+.torrent-list-select-button {
+  border-color: #dbe7ef;
+  color: #475569;
+}
+
+.torrent-list-cancel-button:hover,
+.torrent-list-select-button:hover {
+  border-color: #93c5fd;
+  color: #0369a1;
+}
+
+.torrent-list-submit-button {
+  min-width: 132px;
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.16);
+}
+
+:global(.torrent-selection-dropdown),
+:global(.torrent-filter-popover) {
+  z-index: 1100;
+}
+
+:global(.torrent-selection-dropdown .ant-dropdown-menu) {
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+:global(.torrent-selection-dropdown .ant-dropdown-menu-item) {
+  min-width: 112px;
+  max-width: 220px;
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:global(.torrent-filter-popover .ant-popover-inner-content) {
+  padding: 0;
+}
+
+:global(.torrent-filter-popover .torrent-popover-card) {
+  width: min(280px, 72vw);
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.14);
+}
+
+:global(.torrent-filter-popover .torrent-popover-head) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 10px 7px;
+  border-bottom: 1px solid #edf2f7;
+  background: #f8fafc;
+}
+
+:global(.torrent-filter-popover .torrent-popover-title) {
+  padding: 9px 10px 7px;
+  border-bottom: 1px solid #edf2f7;
+  background: #f8fafc;
+  color: #172033;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 18px;
+}
+
+:global(.torrent-filter-popover .torrent-popover-head .torrent-popover-title) {
+  padding: 0;
+  border-bottom: 0;
+  background: transparent;
+}
+
+:global(.torrent-filter-popover .torrent-popover-title.secondary) {
+  margin-top: 0;
+  border-top: 1px solid #edf2f7;
+}
+
+:global(.torrent-filter-popover .torrent-popover-options) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 188px;
+  overflow-y: auto;
+  padding: 10px;
+}
+
+:global(.torrent-filter-popover .torrent-popover-options.two) {
+  max-height: none;
+  padding-top: 8px;
+}
+
+:global(.torrent-filter-popover .torrent-popover-option) {
+  max-width: 128px;
+  height: 26px;
+  padding: 0 9px;
+  overflow: hidden;
+  border: 1px solid #dbe7ef;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #475569;
+  cursor: pointer;
+  font-size: 11px;
+  line-height: 24px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+}
+
+:global(.torrent-filter-popover .torrent-popover-option:hover) {
+  border-color: #93c5fd;
+  background: #eff6ff;
+  color: #0369a1;
+}
+
+:global(.torrent-filter-popover .torrent-popover-option.active) {
+  border-color: #2563eb;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-weight: 700;
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.12);
+}
+
+:global(.torrent-push-modal-wrap .ant-modal-footer) {
+  padding: 0;
+  border-top: 0;
+  background: #ffffff;
+}
+
+:global(.torrent-push-modal-wrap .ant-btn-primary) {
+  font-weight: 700;
+}
+
+.push-action-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-top: 1px solid #e6edf5;
+  background: #ffffff;
+}
+
+.push-action-summary {
+  min-width: 0;
+  overflow: hidden;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 20px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.push-action-buttons {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 8px;
+}
+
+.push-cancel-button,
+.push-submit-button {
+  min-width: 92px;
+  height: 32px;
+  border-radius: 8px;
+  font-weight: 700;
+}
+
+.push-cancel-button {
+  border-color: #dbe7ef;
+  color: #475569;
+}
+
+.push-cancel-button:hover {
+  border-color: #93c5fd;
+  color: #0369a1;
+}
+
+.push-submit-button {
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.18);
+}
+
 @media (max-width: 640px) {
+  .torrent-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .torrent-toolbar-meta {
+    justify-content: flex-start;
+  }
+
+  .torrent-count {
+    text-align: left;
+    white-space: normal;
+  }
+
+  .torrent-filter-panel {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .torrent-list-action-bar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .torrent-list-action-buttons {
+    width: 100%;
+  }
+
+  .torrent-list-cancel-button,
+  .torrent-list-select-button,
+  .torrent-list-submit-button {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .push-sheet {
+    height: min(620px, 84vh);
+  }
+
+  .push-sheet-header,
+  .push-sheet-title-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .push-provider-tag {
+    align-self: flex-start;
+  }
+
+  .push-custom-tag {
+    width: 100%;
+  }
+
+  .push-advanced-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .push-action-bar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .push-action-buttons {
+    width: 100%;
+  }
+
+  .push-cancel-button,
+  .push-submit-button {
+    flex: 1;
+  }
+
   .site-data-grid {
     grid-template-columns: 1fr;
   }
