@@ -287,7 +287,8 @@ export const useSettingStore = defineStore("setting", () => {
         if (!response.succeed) {
             return response;
         }
-        return CommonResponse.success(response.data.reduce((acc: { [key: string]: WebSite }, site: WebSite) => {
+        const sites = Array.isArray(response.data) ? response.data : [];
+        return CommonResponse.success(sites.reduce((acc: { [key: string]: WebSite }, site: WebSite) => {
             acc[site.name] = site;
             return acc;
         }, {}))
@@ -305,7 +306,8 @@ export const useSettingStore = defineStore("setting", () => {
         if (!response.succeed) {
             return response;
         }
-        const data = response.data.reduce((acc: { [key: number]: MySite }, site: MySite) => {
+        const sites = Array.isArray(response.data) ? response.data : [];
+        const data = sites.reduce((acc: { [key: number]: MySite }, site: MySite) => {
             const {status, sign_info, ...processedSite} = site;
             // 获取最新状态日期（如果有）
 
@@ -348,7 +350,7 @@ export const useSettingStore = defineStore("setting", () => {
     const filterSiteByHost = (host: string) => {
         // host = replaceMTeamDomainIfMatched(host).toLowerCase();
 
-        return Object.values(webSiteList.value!).find(site =>
+        return Object.values(webSiteList.value ?? {}).find(site =>
             site.url.some(url => {
                 try {
                     return new URL(url).host === host;
@@ -363,7 +365,7 @@ export const useSettingStore = defineStore("setting", () => {
      * @param siteName
      */
     const filterMySiteBySiteName = (siteName: String) => {
-        const mySite = Object.values(mySiteList.value!).find(mySite => mySite.site === siteName);
+        const mySite = Object.values(mySiteList.value ?? {}).find(mySite => mySite.site === siteName);
         console.log(mySite);
         if (!mySite) {
             return 0

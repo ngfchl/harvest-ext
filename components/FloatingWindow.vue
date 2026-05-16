@@ -173,6 +173,17 @@ const resetPosition = async () => {
   await storage.setItem('local:topPosition', JSON.stringify(240));
   // location.reload();
 }
+
+const resolveCurrentMySiteId = () => {
+  if (props.initialMySiteId > 0) {
+    return props.initialMySiteId
+  }
+  if (!siteInfo.value?.name) {
+    return 0
+  }
+  return filterMySiteBySiteName(siteInfo.value.name) || 0
+}
+
 const loadLocalStorage = async () => {
   // 使用当前页面 host 查找站点配置文件，再根据固定配置名反查已添加站点 ID。
   siteInfo.value = props.initialWebsite || filterSiteByHost(location.host)
@@ -182,7 +193,7 @@ const loadLocalStorage = async () => {
     // message.error()
     return;
   }
-  mySiteId.value = props.initialMySiteId || filterMySiteBySiteName(siteInfo.value.name);
+  mySiteId.value = resolveCurrentMySiteId();
   console.log('查找到的站点 ID：', mySiteId.value)
 
   topPosition.value = parseInt(await storage.getItem('local:topPosition') || '240')
@@ -199,13 +210,10 @@ onMounted(async () => {
   initializeDownloaders().catch(error => {
     console.error('初始化下载器失败:', error)
   })
-  initializePromise.then(async () => {
-    if (!siteInfo.value) {
-      await loadLocalStorage()
-    }
-  })
   // 从本地存储加载站点信息
   await loadLocalStorage();
+  await initializePromise
+  await loadLocalStorage()
 
   // await getSiteInfo()
   // 在 Shadow DOM 中添加事件监听器
