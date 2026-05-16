@@ -18,7 +18,7 @@ export default defineConfig({
             ? {}
             : {key: fs.readFileSync('key.pem', 'utf-8')}),
         version: '0.3.1',
-        permissions: ["storage", "cookies", "activeTab", "scripting", 'contextMenus'],
+        permissions: ["storage", "cookies", "activeTab", 'contextMenus'],
         host_permissions: [
             "*://*/*",
         ], // 或精准配置
