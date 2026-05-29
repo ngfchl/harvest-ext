@@ -23,6 +23,7 @@ import {storeToRefs} from "pinia";
 import {Category, CommonResponse, RepeatInfo} from "@/types";
 import copy from "copy-to-clipboard";
 import {MENU_IDS} from "@/components/menu";
+import {serializeLocalStorage} from "@/utils/localStorageString";
 
 const props = withDefaults(defineProps<{
   initialWebsite?: any;
@@ -806,23 +807,31 @@ async function getSiteData() {
   }
   console.log('站点 UID 解析成功：', myUid.value)
 
+  cookie.value = ''
+  const localStorageText = serializeLocalStorage()
+
   /* 处理馒头域名 */
   let host = `${document.location.origin}/`
   if (host.includes("m-team")) {
     cookie.value = localStorage.getItem('auth') || ''
+    if (!cookie.value && !localStorageText) {
+      return CommonResponse.error(-1, 'Cookie 和 LocalStorage 获取失败！')
+    }
   } else {
     let cookieResponse = await getCookieString(location.host)
-    if (!cookieResponse.succeed) {
+    if (cookieResponse.succeed) {
+      cookie.value = cookieResponse.data
+    } else if (!localStorageText) {
       console.error(`Cookie获取失败，${cookieResponse.msg}！`)
       return CommonResponse.error(-1, `Cookie获取失败，${cookieResponse.msg}！`)
     }
-    cookie.value = cookieResponse.data
   }
 
   const siteData: Record<string, any> = {
     user_id: myUid.value,
     site: siteInfo.value.name,
     cookie: cookie.value,
+    local_storage: localStorageText,
     user_agent: window.navigator.userAgent,
   };
 
@@ -886,6 +895,7 @@ const siteDataFieldLabels: Record<string, string> = {
   username: '用户名',
   email: '邮箱',
   passkey: 'PassKey',
+  local_storage: 'LocalStorage',
   time_join: '注册时间',
   nickname: '站点昵称',
   mirror: '镜像地址',
@@ -895,7 +905,7 @@ const siteDataFieldLabels: Record<string, string> = {
 }
 
 const siteDataPrimaryKeys = ['id', 'site', 'user_id', 'username', 'email', 'time_join', 'nickname', 'mirror', 'tags']
-const siteDataSecretKeys = ['passkey', 'cookie']
+const siteDataSecretKeys = ['passkey', 'cookie', 'local_storage']
 const siteDataAlwaysPlainKeys = ['site', 'user_agent']
 const siteDataEnvKeys = ['user_agent']
 

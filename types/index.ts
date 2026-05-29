@@ -293,6 +293,8 @@ export interface MySite {
     authkey: string | null;
     /** Cookies，与UA搭配使用效果更佳 */
     cookie: string;
+    /** LocalStorage，格式与 Cookie 字符串一致：key=value; key2=value2 */
+    local_storage?: string | null;
     /** User-Agent，获取cookie的浏览器UA */
     user_agent: string;
     /** RSS地址 */

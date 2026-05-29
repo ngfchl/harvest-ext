@@ -13,6 +13,7 @@ import {
 import {defineStore} from "pinia";
 import {ref, toRaw} from "vue";
 import {message} from "ant-design-vue";
+import {parseLocalStorageString} from "@/utils/localStorageString";
 
 export const useSettingStore = defineStore("setting", () => {
     const setting = ref<Settings>({
@@ -434,20 +435,38 @@ export const useSettingStore = defineStore("setting", () => {
      */
     async function syncSingleSiteCookie(site: MySite) {
         console.log(`正在同步的站点：${site.nickname} ==> ${site.site}`)
-        let {host} = new URL(site.mirror!);
-        const response = await getCookieString(host);
-        if (response.succeed) {
+        if (!site.mirror) {
+            showText.value = `${site.nickname || site.site} 缺少访问地址，无法同步 Cookie 和 LocalStorage`;
+            return;
+        }
+        const localStorageUrls = Array.from(new Set([
+            site.mirror,
+            ...(webSiteList.value?.[site.site]?.url || []),
+        ].filter((url): url is string => Boolean(url))));
+        let {host} = new URL(site.mirror);
+        const [cookieResponse, ...localStorageResponses] = await Promise.all([
+            getCookieString(host),
+            ...localStorageUrls.map(url => getSiteLocalStorageString(url)),
+        ]);
+        const cookieData = cookieResponse.succeed ? cookieResponse.data || '' : '';
+        const localStorageData = localStorageResponses.find(response => response.succeed && response.data)?.data || '';
+
+        if (cookieData || localStorageData) {
             // 保存Cookie到插件存储（推荐使用chrome.storage）
             let siteData = {
                 user_id: site.user_id,
                 site: site.site,
-                cookie: response.data,
+                cookie: cookieData,
+                local_storage: localStorageData,
                 user_agent: window.navigator.userAgent
             }
             const res = await sendSiteInfo(siteData)
             console.log(res.msg)
             showText.value = res.msg;
+            return;
         }
+
+        showText.value = `${site.nickname || site.site} Cookie 和 LocalStorage 获取失败`;
     }
 
     /**
@@ -607,6 +626,38 @@ export const useSettingStore = defineStore("setting", () => {
         return meaningfulCookieNames.length >= 2 && trimmedCookie.length >= 80;
     }
 
+    const isPotentialSiteAuthLocalStorage = (localStorageString: string | null | undefined) => {
+        const entries = parseLocalStorageString(localStorageString);
+        if (entries.length === 0) {
+            return false;
+        }
+
+        const authKeyPatterns = [
+            /auth/i,
+            /token/i,
+            /uid/i,
+            /user/i,
+            /member/i,
+            /pass/i,
+            /login/i,
+            /session/i,
+            /jwt/i,
+        ];
+        if (entries.some(([key, value]) => authKeyPatterns.some(pattern => pattern.test(key)) && value.trim().length >= 8)) {
+            return true;
+        }
+
+        const meaningfulEntries = entries.filter(([key, value]) => {
+            const normalizedKey = key.toLowerCase();
+            if (!value || value.trim().length < 8) {
+                return false;
+            }
+            return !['theme', 'lang', 'language', 'locale', 'timezone'].includes(normalizedKey);
+        });
+
+        return meaningfulEntries.length >= 2 && (localStorageString || '').trim().length >= 80;
+    }
+
     const buildControlPanelUrl = (baseUrl: string, controlPanelPath: string) => {
         if (!controlPanelPath || controlPanelPath.includes("{}")) {
             return baseUrl;
@@ -714,11 +765,19 @@ export const useSettingStore = defineStore("setting", () => {
             try {
                 // 从 URL 生成host
                 const {host} = new URL(url);
-                // 使用 host 获取站点 Cookie
-                const response = await getCookieString(host);
+                // 使用 host 获取站点 Cookie，同时读取 localStorage，用于兼容 token 型站点
+                const [cookieResponse, localStorageResponse] = await Promise.all([
+                    getCookieString(host),
+                    getSiteLocalStorageString(url),
+                ]);
+                const hasAuthCookie = cookieResponse.succeed
+                    && cookieResponse.data
+                    && isPotentialSiteAuthCookie(cookieResponse.data);
+                const hasAuthLocalStorage = localStorageResponse.succeed
+                    && isPotentialSiteAuthLocalStorage(localStorageResponse.data);
                 // 筛选 Cookie，无效的 Cookie 直接排除
                 // 有效站点挨个打开标签页【控制面板页面】，自动同步信息
-                if (response.succeed && response.data && isPotentialSiteAuthCookie(response.data)) {
+                if (hasAuthCookie || hasAuthLocalStorage) {
                     // 保存Cookie到插件存储（推荐使用chrome.storage）
                     // await storage.setItem(<StorageItemKey>host!, response.data);
                     const panelUrl = buildControlPanelUrl(url, site.page_control_panel);
@@ -823,6 +882,19 @@ export const useSettingStore = defineStore("setting", () => {
         }
         console.log("Cookies:", cookies)
         return cookies
+    }
+
+    /**
+     * 获取指定站点 localStorage，并序列化为 key=value; key2=value2 格式
+     * @param url 站点访问地址
+     */
+    const getSiteLocalStorageString = async (url: string) => {
+        return await browser.runtime.sendMessage({
+            type: 'getSiteLocalStorage',
+            payload: {
+                url,
+            }
+        });
     }
 
     /**
@@ -1009,6 +1081,7 @@ export const useSettingStore = defineStore("setting", () => {
         getDownloaders,
         getSetting,
         getSite,
+        getSiteLocalStorageString,
         importCookieMode,
         initialize,
         initializeCore,

@@ -1,6 +1,12 @@
 import {CommonResponse, MySite, Settings, SiteInfo, Torrent} from "@/types";
 import {fetchApi} from "@/hooks/requests";
 import {MENU_IDS} from "@/components/menu";
+import {
+    LOCAL_STORAGE_EXCLUDED_KEYS,
+    LocalStorageEntry,
+    parseLocalStorageString,
+    serializeLocalStorageEntries,
+} from "@/utils/localStorageString";
 
 
 export default defineBackground(() => {
@@ -61,6 +67,14 @@ export default defineBackground(() => {
                     case "writeSingleSiteCookies":
                         response = await writeSingleSiteCookiesApi(request.payload)
                         console.log('写入单站Cookie执行结果', response)
+                        break;
+                    case "getSiteLocalStorage":
+                        response = await getSiteLocalStorageApi(request.payload)
+                        console.log('获取站点LocalStorage执行结果', response)
+                        break;
+                    case "writeSiteLocalStorage":
+                        response = await writeSiteLocalStorageApi(request.payload)
+                        console.log('写入站点LocalStorage执行结果', response)
                         break;
                     case "openPanelUrl":
                         response = await openPanelUrl(request.payload)
@@ -436,6 +450,171 @@ async function openPanelUrl(params: {
     await browser.tabs.create({url: params.host, active: params.active ?? false});
 }
 
+const getSiteStorageTarget = (url: string) => {
+    const parsedUrl = new URL(url);
+    parsedUrl.hash = '';
+    return {
+        url: parsedUrl.toString(),
+        origin: `${parsedUrl.origin}/`,
+    };
+}
+
+const waitForTabComplete = async (tabId: number, alreadyComplete = false, timeout = 15000) => {
+    if (alreadyComplete) {
+        return;
+    }
+
+    await new Promise<void>((resolve, reject) => {
+        let finished = false;
+        const cleanup = () => {
+            browser.tabs.onUpdated.removeListener(listener);
+            clearTimeout(timer);
+        }
+        const finish = (handler: () => void) => {
+            if (finished) {
+                return;
+            }
+            finished = true;
+            cleanup();
+            handler();
+        }
+        const listener = (updatedTabId: number, changeInfo: { status?: string }) => {
+            if (updatedTabId === tabId && changeInfo.status === 'complete') {
+                finish(resolve);
+            }
+        }
+        const timer = setTimeout(() => {
+            finish(() => reject(new Error('等待站点页面加载超时')));
+        }, timeout);
+
+        browser.tabs.onUpdated.addListener(listener);
+    });
+}
+
+const runInTemporarySiteTab = async <T>(
+    url: string,
+    task: (tabId: number) => Promise<CommonResponse<T>>,
+): Promise<CommonResponse<T>> => {
+    let tabId: number | undefined;
+    try {
+        const tab = await browser.tabs.create({url, active: false});
+        tabId = tab.id;
+        if (!tabId) {
+            return CommonResponse.error(-1, '创建站点临时标签页失败');
+        }
+
+        await waitForTabComplete(tabId, tab.status === 'complete');
+        const loadedTab = await browser.tabs.get(tabId);
+        if (loadedTab.url?.startsWith('chrome-error://')) {
+            return CommonResponse.error(-1, `站点页面无法打开，跳过 LocalStorage 操作：${url}`);
+        }
+        return await task(tabId);
+    } catch (error) {
+        console.error('站点临时标签页执行失败:', error);
+        return CommonResponse.error(-1, `站点临时标签页执行失败：${error}`);
+    } finally {
+        if (tabId) {
+            browser.tabs.remove(tabId).catch(error => {
+                console.warn('关闭站点临时标签页失败:', error);
+            });
+        }
+    }
+}
+
+const getSiteLocalStorageApi = async (params: {
+    url: string,
+}): Promise<CommonResponse<string>> => {
+    try {
+        const target = getSiteStorageTarget(params.url);
+        return await runInTemporarySiteTab(target.url, async (tabId) => {
+            const results = await browser.scripting.executeScript({
+                target: {tabId},
+                world: 'MAIN',
+                func: (excludedKeys: string[]) => {
+                    const excludedKeySet = new Set(excludedKeys);
+                    const entries: [string, string][] = [];
+                    for (let index = 0; index < window.localStorage.length; index += 1) {
+                        const key = window.localStorage.key(index);
+                        if (!key || excludedKeySet.has(key)) {
+                            continue;
+                        }
+                        entries.push([key, window.localStorage.getItem(key) || '']);
+                    }
+                    return entries;
+                },
+                args: [LOCAL_STORAGE_EXCLUDED_KEYS],
+            });
+            const entries = (results[0]?.result || []) as LocalStorageEntry[];
+            const data = serializeLocalStorageEntries(entries);
+            return CommonResponse.success(data, data ? 'LocalStorage 获取成功' : 'LocalStorage 为空');
+        });
+    } catch (error) {
+        console.error('获取站点 LocalStorage 失败:', error);
+        return CommonResponse.error(-1, `获取站点 LocalStorage 失败：${error}`);
+    }
+}
+
+const writeSiteLocalStorageApi = async (params: {
+    url: string,
+    localStorageText?: unknown,
+}): Promise<CommonResponse<{ origin: string; written: number; failedKeys: string[] }>> => {
+    const entries = parseLocalStorageString(params.localStorageText);
+    const target = getSiteStorageTarget(params.url);
+    if (entries.length === 0) {
+        return CommonResponse.success({origin: target.origin, written: 0, failedKeys: []}, '没有 LocalStorage 需要写入');
+    }
+
+    try {
+        return await runInTemporarySiteTab(target.url, async (tabId) => {
+            const results = await browser.scripting.executeScript({
+                target: {tabId},
+                world: 'MAIN',
+                func: (items: [string, string][]) => {
+                    const failedKeys: string[] = [];
+                    let written = 0;
+                    items.forEach(([key, value]) => {
+                        if (!key) {
+                            return;
+                        }
+                        try {
+                            window.localStorage.setItem(key, value);
+                            if (window.localStorage.getItem(key) === value) {
+                                written += 1;
+                                return;
+                            }
+                            failedKeys.push(key);
+                        } catch {
+                            failedKeys.push(key);
+                        }
+                    });
+                    return {written, failedKeys};
+                },
+                args: [entries],
+            });
+            const result = results[0]?.result || {written: 0, failedKeys: []};
+            const failedKeys = result.failedKeys || [];
+            if (failedKeys.length > 0) {
+                return CommonResponse.error(
+                    -1,
+                    `LocalStorage 部分字段写入后校验失败：${failedKeys.join(', ')}`,
+                    {origin: target.origin, written: result.written || 0, failedKeys},
+                );
+            }
+            return CommonResponse.success(
+                {origin: target.origin, written: result.written || 0, failedKeys: []},
+                `LocalStorage 写入完成，共 ${result.written || 0} 项`,
+            );
+        });
+    } catch (error) {
+        console.error('写入站点 LocalStorage 失败:', error);
+        return CommonResponse.error(-1, `写入站点 LocalStorage 失败：${error}`, {
+            origin: target.origin,
+            written: 0,
+            failedKeys: entries.map(([key]) => key),
+        });
+    }
+}
+
 /**
  * 将整条 Cookie 字符串写入浏览器
  * @param params
@@ -446,33 +625,53 @@ export async function writeSingleSiteCookiesApi(params: {
 }) {
     const mySite = params.mySite;
     try {
-        const url = new URL(mySite.mirror!);
-        const secure = url.protocol === 'https:';
-        const {hostname} = url; // 提取域名
+        if (!mySite.mirror) {
+            return CommonResponse.error(-1, `❌ ${mySite.nickname || mySite.site} 缺少 mirror，无法写入 Cookie / LocalStorage`);
+        }
+        const target = getSiteStorageTarget(mySite.mirror);
+        const targetUrl = new URL(target.url);
 
-        const pairs = mySite.cookie.split(';');
+        const pairs = (mySite.cookie || '').split(';');
+        let cookieCount = 0;
         console.log('要写入的Cookie信息：', pairs)
         for (const pair of pairs) {
             const [name, ...rest] = pair.trim().split('=');
             const value = rest.join('=');
             if (!name || !value) continue;
-            console.log(url.origin)
-            browser.cookies.set({
-                url: url.origin,
+            console.log(target.origin)
+            await browser.cookies.set({
+                url: target.origin,
                 name,
                 value,
-                domain: hostname, // 用主机名
+                domain: targetUrl.hostname,
                 path: '/',
-                secure,
+                secure: targetUrl.protocol === 'https:',
                 httpOnly: false,
                 sameSite: 'lax',
                 expirationDate: Math.floor(Date.now() / 1000) + 3600 * 24 * 365,
             });
-
+            cookieCount += 1;
         }
-        return CommonResponse.success(null, `✅${mySite.nickname || mySite.site} Cookie 写入完成！`)
+        const localStorageEntryCount = parseLocalStorageString(mySite.local_storage).length;
+        const localStorageResult = await writeSiteLocalStorageApi({
+            url: target.url,
+            localStorageText: mySite.local_storage,
+        });
+        const localStorageCount = localStorageResult.succeed ? localStorageResult.data?.written || 0 : 0;
+
+        if (localStorageEntryCount > 0 && !localStorageResult.succeed) {
+            return CommonResponse.error(
+                -1,
+                `❌ ${mySite.nickname || mySite.site} Cookie 写入 ${cookieCount} 项，但 mirror LocalStorage 未写入成功：${localStorageResult.msg}`,
+            );
+        }
+
+        return CommonResponse.success(
+            null,
+            `✅${mySite.nickname || mySite.site} mirror Cookie 写入 ${cookieCount} 项，LocalStorage 写入 ${localStorageCount} 项！`,
+        )
     } catch (err) {
         console.error(err);
-        return CommonResponse.error(-1, `❌ ${mySite.nickname || mySite.site} Cookie 写入失败！`);
+        return CommonResponse.error(-1, `❌ ${mySite.nickname || mySite.site} Cookie / LocalStorage 写入失败！`);
     }
 }
