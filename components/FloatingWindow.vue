@@ -223,6 +223,9 @@ onMounted(async () => {
   window.addEventListener('harvest:action', (e: any) => {
     handleHarvestAction(e.detail);
   });
+  window.addEventListener('harvest:notify', (e: any) => {
+    handleHarvestNotify(e.detail);
+  });
   const initPageState = async () => {
     console.log('页面已就绪，初始化悬浮窗状态');
     await getUid()
@@ -252,6 +255,28 @@ const handleHarvestAction = async (action: string) => {
       break;
     case MENU_IDS.OPEN_HARVESTER:
       await openHarvester();
+      break;
+  }
+}
+
+const handleHarvestNotify = (payload: { type?: 'success' | 'error' | 'warning' | 'info', text?: string } = {}) => {
+  const text = payload.text || '';
+  if (!text) {
+    return;
+  }
+  switch (payload.type) {
+    case 'error':
+      message.error(text);
+      break;
+    case 'warning':
+      message.warning(text);
+      break;
+    case 'info':
+      message.info(text);
+      break;
+    case 'success':
+    default:
+      message.success(text);
       break;
   }
 }

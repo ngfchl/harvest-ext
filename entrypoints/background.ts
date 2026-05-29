@@ -8,6 +8,7 @@ import {
     serializeLocalStorageEntries,
 } from "@/utils/localStorageString";
 
+const CLOSE_TAB_AFTER_ADD_DELAY_MS = 3000;
 
 export default defineBackground(() => {
 
@@ -324,7 +325,21 @@ async function sendSiteInfoApi(params: {
     });
     console.log(`站点同步结果：closeTabOnSuccess=${params.closeTabOnSuccess} succeed=${response.succeed}`);
     if (response.succeed && params.closeTabOnSuccess && sender.tab?.id) {
-        browser.tabs.remove(sender.tab.id)
+        const tabId = sender.tab.id;
+        browser.tabs.sendMessage(tabId, {
+            type: 'HARVEST_NOTIFY',
+            payload: {
+                type: 'success',
+                text: '添加成功，稍后关闭页面',
+            },
+        }).catch(error => {
+            console.warn('发送添加成功提示失败:', error);
+        });
+        setTimeout(() => {
+            browser.tabs.remove(tabId).catch(error => {
+                console.warn('延时关闭添加页面失败:', error);
+            });
+        }, CLOSE_TAB_AFTER_ADD_DELAY_MS);
     }
 
     return response

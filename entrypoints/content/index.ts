@@ -75,14 +75,22 @@ export default defineContentScript({
             (window as any).__HARVEST_MENU_LISTENER__ = true;
 
             browser.runtime.onMessage.addListener((msg) => {
-                if (msg.type !== 'HARVEST_MENU_ACTION') return
-                window.dispatchEvent(
-                    new CustomEvent('harvest:action', {
-                        detail: msg.action,
-                    })
-                );
+                if (msg.type === 'HARVEST_MENU_ACTION') {
+                    window.dispatchEvent(
+                        new CustomEvent('harvest:action', {
+                            detail: msg.action,
+                        })
+                    );
+                    return;
+                }
+                if (msg.type === 'HARVEST_NOTIFY') {
+                    window.dispatchEvent(
+                        new CustomEvent('harvest:notify', {
+                            detail: msg.payload,
+                        })
+                    );
+                }
             })
         }
     },
 });
-
