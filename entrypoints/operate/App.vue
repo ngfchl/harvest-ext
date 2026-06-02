@@ -635,10 +635,20 @@ const oneKeySync = async () => {
 }
 const oneKeySignIn = async () => {
   await runWithLoading('oneKeySignIn', async () => {
-    const toSignList = Object.values(mySiteList.value!).filter(site => site.available && site.sign_in && site.sign_info == null)
+    showText.value = '正在更新站点信息列表...'
+    await cacheServerData()
+    hadList.value = Object.values(mySiteList.value || {}).map(site => site.site)
+
+    const toSignList = Object.values(mySiteList.value || {}).filter(site => site.available && site.sign_in && site.sign_info == null)
+    if (toSignList.length === 0) {
+      showText.value = '没有需要签到的站点'
+      message.info('没有需要签到的站点')
+      return
+    }
+    showText.value = `正在批量打开 ${toSignList.length} 个未签到站点`
     await autoSignAll(toSignList)
   }, {
-    text: '正在批量打开未签到站点',
+    text: '正在更新站点信息列表...',
     delay: 3000,
   })
 }
