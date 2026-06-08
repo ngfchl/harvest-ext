@@ -630,6 +630,49 @@ const writeSiteLocalStorageApi = async (params: {
     }
 }
 
+const clearSiteLocalStorageApi = async (url: string): Promise<CommonResponse<{ origin: string }>> => {
+    const target = getSiteStorageTarget(url);
+    try {
+        return await runInTemporarySiteTab(target.url, async (tabId) => {
+            await browser.scripting.executeScript({
+                target: {tabId},
+                world: 'MAIN',
+                func: () => {
+                    window.localStorage.clear();
+                },
+            });
+            return CommonResponse.success({origin: target.origin}, 'LocalStorage 已清空');
+        });
+    } catch (error) {
+        console.error('清空站点 LocalStorage 失败:', error);
+        return CommonResponse.error(-1, `清空站点 LocalStorage 失败：${error}`);
+    }
+}
+
+const clearSiteCookiesApi = async (url: string): Promise<CommonResponse<{ origin: string; removed: number }>> => {
+    const target = getSiteStorageTarget(url);
+    const targetUrl = new URL(target.url);
+    try {
+        const cookies = await browser.cookies.getAll({domain: targetUrl.hostname});
+        let removed = 0;
+        await Promise.allSettled(cookies.map(async (cookie) => {
+            const cookieUrl = `${cookie.secure ? 'https' : 'http'}://${cookie.domain.replace(/^\./, '')}${cookie.path}`;
+            const result = await browser.cookies.remove({
+                url: cookieUrl,
+                name: cookie.name,
+                storeId: cookie.storeId,
+            });
+            if (result) {
+                removed += 1;
+            }
+        }));
+        return CommonResponse.success({origin: target.origin, removed}, `Cookie 已清理 ${removed} 项`);
+    } catch (error) {
+        console.error('清空站点 Cookie 失败:', error);
+        return CommonResponse.error(-1, `清空站点 Cookie 失败：${error}`);
+    }
+}
+
 /**
  * 将整条 Cookie 字符串写入浏览器
  * @param params
@@ -645,6 +688,17 @@ export async function writeSingleSiteCookiesApi(params: {
         }
         const target = getSiteStorageTarget(mySite.mirror);
         const targetUrl = new URL(target.url);
+        const [clearCookieResult, clearLocalStorageResult] = await Promise.all([
+            clearSiteCookiesApi(target.url),
+            clearSiteLocalStorageApi(target.url),
+        ]);
+
+        if (!clearCookieResult.succeed) {
+            return CommonResponse.error(-1, `❌ ${mySite.nickname || mySite.site} 清理现有 Cookie 失败：${clearCookieResult.msg}`);
+        }
+        if (!clearLocalStorageResult.succeed) {
+            return CommonResponse.error(-1, `❌ ${mySite.nickname || mySite.site} 清理现有 LocalStorage 失败：${clearLocalStorageResult.msg}`);
+        }
 
         const pairs = (mySite.cookie || '').split(';');
         let cookieCount = 0;

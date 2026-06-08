@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import {computed, nextTick, onMounted, ref} from 'vue';
+import {computed, nextTick, onBeforeUnmount, onMounted, ref} from 'vue';
 import {useSettingStore} from "@/hooks/use-setting";
 import {storeToRefs} from "pinia";
 import {MenuProps, message} from "ant-design-vue";
@@ -60,6 +60,7 @@ const {
   autoAddSites,
   autoSyncCookie,
   getCookieString,
+  getSiteLocalStorageString,
   refreshSingleSite,
   autoImportCookie,
   signSingleSite,
@@ -81,6 +82,7 @@ const filterKey = ref('null');
 const showMySiteList = ref<MySite[]>([]);
 const hadList = ref<string[]>([]);
 const cookieInfoMap = ref<{ [key: string]: string }>();
+const localStorageInfoMap = ref<{ [key: string]: string }>({});
 const operationLoadingMap = ref<Record<string, boolean>>({});
 const operationTextMap = ref<Record<string, string>>({});
 
@@ -102,6 +104,7 @@ type UnifiedSiteCard = {
   primaryUrl: string;
   urls: string[];
   localCookie: string;
+  localStorageText: string;
   mySite?: MySite;
   webSite?: WebSite;
 }
@@ -113,13 +116,13 @@ const unifiedGroupMeta: Record<UnifiedSiteGroupKey, { title: string; description
     color: 'red',
   },
   databaseWithLocalCookie: {
-    title: '已添加 · 本地有 Cookie',
-    description: '可更新后台 Cookie，也可复制当前浏览器 Cookie',
+    title: '已添加 · 本地有数据',
+    description: '当前浏览器已有 Cookie 或 LocalStorage，可直接覆盖写入',
     color: 'green',
   },
   databaseWithoutLocalCookie: {
-    title: '已添加 · 本地无 Cookie',
-    description: '可将后台保存的 Cookie 写入当前浏览器',
+    title: '已添加 · 本地无数据',
+    description: '可将后台保存的 Cookie 和 LocalStorage 写入当前浏览器',
     color: 'blue',
   },
   unadded: {
@@ -156,6 +159,10 @@ const getUrlHostname = (url: string | null | undefined) => {
 }
 
 const hasLocalCookie = (cookie: string | null | undefined) => Boolean(cookie && cookie.trim().length > 0)
+const hasLocalStorageData = (storageText: string | null | undefined) => Boolean(storageText && storageText.trim().length > 0)
+const hasLocalSiteData = (cookie: string | null | undefined, storageText: string | null | undefined) => (
+    hasLocalCookie(cookie) || hasLocalStorageData(storageText)
+)
 
 type SiteOperation = 'syncSingleSite' | 'refreshSite' | 'signSite' | 'writeSiteCookies'
 
@@ -447,11 +454,25 @@ const getCookieByUrls = (urls: Array<string | null | undefined>) => {
   return matchedEntry?.[1] || '';
 }
 
-const getCardGroup = (mySite: MySite | undefined, localCookie: string): UnifiedSiteGroupKey => {
+const getLocalStorageByUrls = (urls: Array<string | null | undefined>) => {
+  const storageMap = localStorageInfoMap.value || {};
+  const exactUrlStorage = urls
+      .filter(Boolean)
+      .map(url => storageMap[url as string] || '')
+      .find(hasLocalStorageData);
+  if (exactUrlStorage) {
+    return exactUrlStorage;
+  }
+  const hosts = urls.map(getUrlHostname).filter(Boolean);
+  const matchedEntry = Object.entries(storageMap).find(([url, storageText]) => hasLocalStorageData(storageText) && hosts.includes(getUrlHostname(url)));
+  return matchedEntry?.[1] || '';
+}
+
+const getCardGroup = (mySite: MySite | undefined, localCookie: string, localStorageText: string): UnifiedSiteGroupKey => {
   if (mySite && !mySite.available) {
     return 'disabled'
   }
-  if (mySite && hasLocalCookie(localCookie)) {
+  if (mySite && hasLocalSiteData(localCookie, localStorageText)) {
     return 'databaseWithLocalCookie'
   }
   if (mySite) {
@@ -531,14 +552,16 @@ const unifiedSiteCards = computed<UnifiedSiteCard[]>(() => {
     const mySite = databaseSiteMap.get(site.name);
     const urls = mySite?.mirror ? [mySite.mirror, ...site.url] : site.url;
     const localCookie = getCookieByUrls(urls);
+    const localStorageText = getLocalStorageByUrls(urls);
     return {
       key: `support:${site.name}`,
-      group: getCardGroup(mySite, localCookie),
+      group: getCardGroup(mySite, localCookie, localStorageText),
       siteName: site.name,
       displayName: mySite?.nickname || site.nickname || site.name,
       primaryUrl: mySite?.mirror || site.url[0],
       urls,
       localCookie,
+      localStorageText,
       mySite,
       webSite: site,
     }
@@ -549,14 +572,16 @@ const unifiedSiteCards = computed<UnifiedSiteCard[]>(() => {
       .forEach((site) => {
         const urls = site.mirror ? [site.mirror] : [];
         const localCookie = getCookieByUrls(urls);
+        const localStorageText = getLocalStorageByUrls(urls);
         cards.push({
           key: `database:${site.id || site.site}`,
-          group: getCardGroup(site, localCookie),
+          group: getCardGroup(site, localCookie, localStorageText),
           siteName: site.site,
           displayName: site.nickname || site.site,
           primaryUrl: site.mirror || '',
           urls,
           localCookie,
+          localStorageText,
           mySite: site,
         })
       })
@@ -602,6 +627,40 @@ const unifiedSiteStats = computed(() => ({
   writeable: unifiedSiteCards.value.filter(card => card.group === 'databaseWithoutLocalCookie').length,
   unadded: unifiedSiteCards.value.filter(card => card.group === 'unadded').length,
 }))
+
+const refreshLocalSiteData = async (urls: Array<string | null | undefined>) => {
+  const validUrls = Array.from(new Set(urls.filter((url): url is string => Boolean(url))));
+  const entries = await Promise.all(validUrls.map(async (url) => {
+    try {
+      const host = new URL(url).hostname;
+      const [cookie, localStorageResponse] = await Promise.all([
+        getCookieString(host),
+        getSiteLocalStorageString(url),
+      ]);
+      return {
+        url,
+        cookie: cookie.succeed ? cookie.data || '' : '',
+        localStorageText: localStorageResponse.succeed ? localStorageResponse.data || '' : '',
+      } as const;
+    } catch (error) {
+      console.warn(`Failed to refresh local site data for URL: ${url}`, error);
+      return {
+        url,
+        cookie: '',
+        localStorageText: '',
+      } as const;
+    }
+  }));
+
+  cookieInfoMap.value = {
+    ...(cookieInfoMap.value || {}),
+    ...Object.fromEntries(entries.map(item => [item.url, item.cookie])),
+  };
+  localStorageInfoMap.value = {
+    ...(localStorageInfoMap.value || {}),
+    ...Object.fromEntries(entries.map(item => [item.url, item.localStorageText])),
+  };
+}
 
 const handleSortList: MenuProps['onClick'] = key => {
   console.log(key)
@@ -685,27 +744,29 @@ const fetchAllSupportCookies = async () => {
   urlList = Array.from(new Set(urlList));
   const tasks = urlList.map(async (url) => {
     try {
-      // 1. 安全解析 URL 获取 hostname
       const host = new URL(url).hostname;
-
-      // 2. 异步获取 cookie
-      const cookie = await getCookieString(host);
-
-      // 3. 返回 [key, value] 对，用于 Object.fromEntries
-      if (cookie.succeed) {
-        return [url, cookie.data || ''] as const;
-      }
+      const [cookie, localStorageResponse] = await Promise.all([
+        getCookieString(host),
+        getSiteLocalStorageString(url),
+      ]);
+      return {
+        url,
+        cookie: cookie.succeed ? cookie.data || '' : '',
+        localStorageText: localStorageResponse.succeed ? localStorageResponse.data || '' : '',
+      } as const;
     } catch (error) {
       console.warn(`Failed to get cookie for URL: ${url}`, error);
     }
-    return [url, ''] as const; // 出错时返回空字符串
+    return {
+      url,
+      cookie: '',
+      localStorageText: '',
+    } as const;
   });
 
-  // 等待所有请求完成
   const entries = await Promise.all(tasks);
-
-  // 转为对象 { url: cookie }
-  cookieInfoMap.value = Object.fromEntries(entries);
+  cookieInfoMap.value = Object.fromEntries(entries.map(item => [item.url, item.cookie]));
+  localStorageInfoMap.value = Object.fromEntries(entries.map(item => [item.url, item.localStorageText]));
 
   console.log(cookieInfoMap.value)
 }
@@ -777,8 +838,9 @@ const writeSiteCookies = async (site: MySite) => {
   const key = siteOperationKey('writeSiteCookies', site);
   await runWithLoading(key, async () => {
     await writeSingleSiteCookies(site)
+    await refreshLocalSiteData(site.mirror ? [site.mirror] : [])
   }, {
-    text: `正在写入 ${site.nickname || site.site} 站点Cookie...`,
+    text: `正在写入 ${site.nickname || site.site} 站点 Cookie / LocalStorage...`,
     delay: 1000,
   })
 }
@@ -1252,7 +1314,7 @@ const openHarvester = () => {
               <strong>{{ unifiedSiteStats.disabled }}</strong>
             </div>
             <div class="stat-item success">
-              <span class="stat-label">本地 Cookie</span>
+              <span class="stat-label">本地认证</span>
               <strong>{{ unifiedSiteStats.localCookie }}</strong>
             </div>
             <div class="stat-item primary">
@@ -1289,9 +1351,8 @@ const openHarvester = () => {
                   <a-card class="site-card support-site-card unified-site-card" hoverable size="small">
                     <template #extra>
                       <a-tag v-if="card.group === 'disabled'" color="red">已禁用</a-tag>
-                      <a-tag v-else-if="hasLocalCookie(card.localCookie)" color="green">本地 Cookie</a-tag>
                       <a-button
-                          v-else-if="card.group === 'databaseWithoutLocalCookie' && card.mySite"
+                          v-else-if="card.mySite"
                           :loading="isSiteOperationLoading('writeSiteCookies', card.mySite)"
                           class="site-action-button write-action"
                           ghost
@@ -1301,7 +1362,7 @@ const openHarvester = () => {
                         <template #icon>
                           <DownloadOutlined/>
                         </template>
-                        写入
+                        {{ hasLocalSiteData(card.localCookie, card.localStorageText) ? '覆盖' : '写入' }}
                       </a-button>
                       <a-tag v-else-if="card.group === 'unadded'" color="orange">未添加</a-tag>
                     </template>
@@ -1476,8 +1537,8 @@ const openHarvester = () => {
                               <span class="support-url-full">{{ url }}</span>
                             </div>
                             <div class="support-url-state">
-                              <a-tag :color="hasLocalCookie(card.localCookie) ? 'green' : 'default'">
-                                {{ hasLocalCookie(card.localCookie) ? '有 Cookie' : '无 Cookie' }}
+                              <a-tag :color="hasLocalSiteData(card.localCookie, card.localStorageText) ? 'green' : 'default'">
+                                {{ hasLocalSiteData(card.localCookie, card.localStorageText) ? '有本地数据' : '无本地数据' }}
                               </a-tag>
                             </div>
                           </div>
