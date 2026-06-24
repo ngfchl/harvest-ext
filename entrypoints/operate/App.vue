@@ -33,6 +33,7 @@ import {
   SwapOutlined,
   SyncOutlined,
   ThunderboltOutlined,
+  DeleteOutlined,
   UserAddOutlined,
 } from '@ant-design/icons-vue';
 import prettyBytes from "pretty-bytes";
@@ -70,6 +71,7 @@ const {
   writeSingleSiteCookies,
   autoSignAll,
   autoOpenAll,
+  clearSiteAuthData,
 } = settingStore
 // const mySiteId = ref<number>(0)
 const collapsed = ref(false);
@@ -165,6 +167,7 @@ const hasLocalSiteData = (cookie: string | null | undefined, storageText: string
 )
 
 type SiteOperation = 'syncSingleSite' | 'refreshSite' | 'signSite' | 'writeSiteCookies'
+type CardOperation = 'clearSiteAuthData'
 
 const isOperationLoading = (key: string) => Boolean(operationLoadingMap.value[key]);
 const setOperationLoading = (key: string, loading: boolean) => {
@@ -189,6 +192,8 @@ const clearOperationText = (key: string) => {
 }
 const siteOperationKey = (operation: SiteOperation, site: MySite) => `${operation}:${site.id || site.site}`;
 const isSiteOperationLoading = (operation: SiteOperation, site: MySite) => isOperationLoading(siteOperationKey(operation, site));
+const cardOperationKey = (operation: CardOperation, card: UnifiedSiteCard) => `${operation}:${card.key}`;
+const isCardOperationLoading = (operation: CardOperation, card: UnifiedSiteCard) => isOperationLoading(cardOperationKey(operation, card));
 
 const showOperationMessage = (key: string, text: string, style?: Record<string, string>) => {
   setOperationText(key, text);
@@ -844,6 +849,24 @@ const writeSiteCookies = async (site: MySite) => {
     delay: 1000,
   })
 }
+const clearSiteCardAuthData = async (card: UnifiedSiteCard) => {
+  if (!card.primaryUrl) {
+    message.warning(`${card.displayName} 缺少站点访问地址，无法清理`)
+    return
+  }
+  const key = cardOperationKey('clearSiteAuthData', card);
+  await runWithLoading(key, async () => {
+    const res = await clearSiteAuthData(card.primaryUrl, card.displayName)
+    if (res?.succeed === false) {
+      message.error(res.msg || '清理失败')
+      return
+    }
+    await refreshLocalSiteData(card.urls.length > 0 ? card.urls : [card.primaryUrl])
+  }, {
+    text: `正在清理 ${card.displayName} Cookie / LocalStorage...`,
+    delay: 500,
+  })
+}
 const copyLocalCookie = (cookie: string) => {
   if (!hasLocalCookie(cookie)) {
     message.warning('本地暂无 Cookie 可复制')
@@ -1388,6 +1411,21 @@ const openHarvester = () => {
                       <div class="site-action-bar">
                         <template v-if="card.group === 'disabled'">
                           <a-tag color="red">已禁用</a-tag>
+                          <a-tooltip v-if="hasLocalSiteData(card.localCookie, card.localStorageText)">
+                            <template #title>清理本地 Cookie / LocalStorage</template>
+                            <a-button
+                                :loading="isCardOperationLoading('clearSiteAuthData', card)"
+                                class="site-action-button clear-auth-action"
+                                ghost
+                                size="small"
+                                type="primary"
+                                @click="clearSiteCardAuthData(card)">
+                              <template #icon>
+                                <DeleteOutlined/>
+                              </template>
+                              清理
+                            </a-button>
+                          </a-tooltip>
                         </template>
 
                         <template v-else>
@@ -1473,6 +1511,21 @@ const openHarvester = () => {
                                 <CopyOutlined/>
                               </template>
                               复制
+                            </a-button>
+                          </a-tooltip>
+                          <a-tooltip v-if="hasLocalSiteData(card.localCookie, card.localStorageText)">
+                            <template #title>清理本地 Cookie / LocalStorage</template>
+                            <a-button
+                                :loading="isCardOperationLoading('clearSiteAuthData', card)"
+                                class="site-action-button clear-auth-action"
+                                ghost
+                                size="small"
+                                type="primary"
+                                @click="clearSiteCardAuthData(card)">
+                              <template #icon>
+                                <DeleteOutlined/>
+                              </template>
+                              清理
                             </a-button>
                           </a-tooltip>
                         </template>

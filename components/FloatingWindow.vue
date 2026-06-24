@@ -20,7 +20,7 @@ import {
 } from '@ant-design/icons-vue'
 import {useSettingStore} from "@/hooks/use-setting";
 import {storeToRefs} from "pinia";
-import {Category, CommonResponse, RepeatInfo} from "@/types";
+import {Category, CommonResponse, MySite, RepeatInfo} from "@/types";
 import copy from "copy-to-clipboard";
 import {MENU_IDS} from "@/components/menu";
 import {serializeLocalStorage} from "@/utils/localStorageString";
@@ -34,7 +34,7 @@ const props = withDefaults(defineProps<{
 
 const settingStore = useSettingStore()
 const {
-  setting, downloaders,
+  setting, downloaders, mySiteList,
 } = storeToRefs(settingStore)
 const {
   initializeCore,
@@ -51,6 +51,8 @@ const {
   syncTorrents,
   cacheServerData,
   loadCoreFromCacheIfAvailable,
+  clearSiteAuthData,
+  writeSingleSiteCookies,
 } = settingStore
 
 const drawer = ref(false)
@@ -112,6 +114,7 @@ const siteDataModalVisible = ref(false)
 const siteDataLoading = ref(false)
 const siteDataEncrypted = ref(false)
 const siteDataSyncLoading = ref(false)
+const authDataActionLoading = ref<'clear' | 'write' | null>(null)
 const siteDataPreview = ref<Record<string, any>>({})
 const mySiteId = ref<number>(0)
 const topPosition = ref<number>(0)
@@ -283,6 +286,69 @@ const handleHarvestNotify = (payload: { type?: 'success' | 'error' | 'warning' |
 const openHarvester = async () => {
   window.open(setting.value.baseUrl, '_blank');
 }
+
+const reloadCurrentPage = () => {
+  setTimeout(() => {
+    location.reload()
+  }, 500)
+}
+
+const getCurrentMySite = async (): Promise<MySite | null> => {
+  await loadCoreFromCacheIfAvailable()
+  if (!siteInfo.value) {
+    await getSiteInfo()
+  }
+  const siteName = siteInfo.value?.name
+  const sites = Object.values(mySiteList.value || {})
+  return sites.find(site => site.id === mySiteId.value || site.site === siteName) || null
+}
+
+const clearCurrentSiteAuthData = async () => {
+  if (authDataActionLoading.value) {
+    message.warning('当前操作正在进行，请稍后再试')
+    return
+  }
+  authDataActionLoading.value = 'clear'
+  try {
+    if (!siteInfo.value) {
+      await getSiteInfo()
+    }
+    const res = await clearSiteAuthData(`${location.origin}/`, siteInfo.value?.name || location.host)
+    if (res?.succeed === false) {
+      message.error(res.msg || '清理 Cookie / LocalStorage 失败')
+      return
+    }
+    message.success(res?.msg || 'Cookie / LocalStorage 已清理')
+    reloadCurrentPage()
+  } finally {
+    authDataActionLoading.value = null
+  }
+}
+
+const writeCurrentSiteAuthData = async () => {
+  if (authDataActionLoading.value) {
+    message.warning('当前操作正在进行，请稍后再试')
+    return
+  }
+  authDataActionLoading.value = 'write'
+  try {
+    const mySite = await getCurrentMySite()
+    if (!mySite) {
+      message.warning('当前站点尚未添加，无法写入 Cookie')
+      return
+    }
+    const res = await writeSingleSiteCookies(mySite)
+    if (res?.succeed === false) {
+      message.error(res.msg || '写入 Cookie / LocalStorage 失败')
+      return
+    }
+    message.success(res?.msg || 'Cookie / LocalStorage 已写入')
+    reloadCurrentPage()
+  } finally {
+    authDataActionLoading.value = null
+  }
+}
+
 /**
  * 获取站点相关规则
  * @returns
@@ -2193,6 +2259,31 @@ const getPopupContainer = () => getModalContainer()
           <copy-outlined/>
         </template>
         获取Cookie
+      </a-button>
+      <a-button
+          block
+          class="harvest-action"
+          danger
+          :loading="authDataActionLoading === 'clear'"
+          size="small"
+          type="text"
+          @click="clearCurrentSiteAuthData">
+        <template #icon>
+          <ClearOutlined/>
+        </template>
+        清理Cookie
+      </a-button>
+      <a-button
+          block
+          class="harvest-action"
+          :loading="authDataActionLoading === 'write'"
+          size="small"
+          type="text"
+          @click="writeCurrentSiteAuthData">
+        <template #icon>
+          <DownloadOutlined/>
+        </template>
+        写入Cookie
       </a-button>
 
       <a-button

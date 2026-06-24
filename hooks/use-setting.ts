@@ -717,6 +717,21 @@ export const useSettingStore = defineStore("setting", () => {
             }
         });
         showText.value = res.msg;
+        return res
+    }
+    /**
+     * 清理单站 Cookie 和 LocalStorage
+     */
+    const clearSiteAuthData = async (url: string, siteName?: string) => {
+        const res = await browser.runtime.sendMessage({
+            type: 'clearSiteAuthData',
+            payload: {
+                url,
+                siteName,
+            }
+        });
+        showText.value = res.msg;
+        return res
     }
     /**
      * 更新单站数据
@@ -1070,6 +1085,7 @@ export const useSettingStore = defineStore("setting", () => {
         autoSyncCookie,
         cacheServerData,
         canSave,
+        clearSiteAuthData,
         clearSingleSiteHarvestInfo,
         count,
         downloaders,

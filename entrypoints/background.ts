@@ -69,6 +69,10 @@ export default defineBackground(() => {
                         response = await writeSingleSiteCookiesApi(request.payload)
                         console.log('写入单站Cookie执行结果', response)
                         break;
+                    case "clearSiteAuthData":
+                        response = await clearSiteAuthDataApi(request.payload)
+                        console.log('清理站点认证数据执行结果', response)
+                        break;
                     case "getSiteLocalStorage":
                         response = await getSiteLocalStorageApi(request.payload)
                         console.log('获取站点LocalStorage执行结果', response)
@@ -673,6 +677,33 @@ const clearSiteCookiesApi = async (url: string): Promise<CommonResponse<{ origin
     }
 }
 
+const clearSiteAuthDataApi = async (params: {
+    url: string,
+    siteName?: string,
+}): Promise<CommonResponse<{ origin: string; removedCookies: number }>> => {
+    if (!params.url) {
+        return CommonResponse.error(-1, '缺少站点访问地址，无法清理 Cookie / LocalStorage');
+    }
+    const target = getSiteStorageTarget(params.url);
+    const [clearCookieResult, clearLocalStorageResult] = await Promise.all([
+        clearSiteCookiesApi(target.url),
+        clearSiteLocalStorageApi(target.url),
+    ]);
+
+    const displayName = params.siteName || target.origin;
+    if (!clearCookieResult.succeed) {
+        return CommonResponse.error(-1, `❌ ${displayName} 清理 Cookie 失败：${clearCookieResult.msg}`);
+    }
+    if (!clearLocalStorageResult.succeed) {
+        return CommonResponse.error(-1, `❌ ${displayName} 清理 LocalStorage 失败：${clearLocalStorageResult.msg}`);
+    }
+
+    return CommonResponse.success(
+        {origin: target.origin, removedCookies: clearCookieResult.data?.removed || 0},
+        `✅${displayName} Cookie / LocalStorage 已清理`,
+    );
+}
+
 /**
  * 将整条 Cookie 字符串写入浏览器
  * @param params
@@ -688,56 +719,78 @@ export async function writeSingleSiteCookiesApi(params: {
         }
         const target = getSiteStorageTarget(mySite.mirror);
         const targetUrl = new URL(target.url);
-        const [clearCookieResult, clearLocalStorageResult] = await Promise.all([
-            clearSiteCookiesApi(target.url),
-            clearSiteLocalStorageApi(target.url),
-        ]);
-
-        if (!clearCookieResult.succeed) {
-            return CommonResponse.error(-1, `❌ ${mySite.nickname || mySite.site} 清理现有 Cookie 失败：${clearCookieResult.msg}`);
-        }
-        if (!clearLocalStorageResult.succeed) {
-            return CommonResponse.error(-1, `❌ ${mySite.nickname || mySite.site} 清理现有 LocalStorage 失败：${clearLocalStorageResult.msg}`);
-        }
-
-        const pairs = (mySite.cookie || '').split(';');
-        let cookieCount = 0;
-        console.log('要写入的Cookie信息：', pairs)
-        for (const pair of pairs) {
-            const [name, ...rest] = pair.trim().split('=');
-            const value = rest.join('=');
-            if (!name || !value) continue;
-            console.log(target.origin)
-            await browser.cookies.set({
-                url: target.origin,
-                name,
-                value,
-                domain: targetUrl.hostname,
-                path: '/',
-                secure: targetUrl.protocol === 'https:',
-                httpOnly: false,
-                sameSite: 'lax',
-                expirationDate: Math.floor(Date.now() / 1000) + 3600 * 24 * 365,
-            });
-            cookieCount += 1;
-        }
+        const remoteCookie = mySite.cookie || '';
+        const hasRemoteCookie = remoteCookie.trim().length > 0;
         const localStorageEntryCount = parseLocalStorageString(mySite.local_storage).length;
-        const localStorageResult = await writeSiteLocalStorageApi({
-            url: target.url,
-            localStorageText: mySite.local_storage,
-        });
-        const localStorageCount = localStorageResult.succeed ? localStorageResult.data?.written || 0 : 0;
+        const hasRemoteLocalStorage = localStorageEntryCount > 0;
+        const pairs = hasRemoteCookie ? remoteCookie.split(';') : [];
+        let cookieCount = 0;
 
-        if (localStorageEntryCount > 0 && !localStorageResult.succeed) {
-            return CommonResponse.error(
-                -1,
-                `❌ ${mySite.nickname || mySite.site} Cookie 写入 ${cookieCount} 项，但 mirror LocalStorage 未写入成功：${localStorageResult.msg}`,
-            );
+        if (hasRemoteCookie) {
+            let shouldClearLocalCookies = true;
+            try {
+                const currentCookies = await browser.cookies.getAll({domain: targetUrl.hostname});
+                shouldClearLocalCookies = currentCookies.length > 0;
+            } catch (error) {
+                console.warn(`${mySite.nickname || mySite.site} 本地 Cookie 检查失败，将按覆盖流程先清理：`, error);
+            }
+            if (shouldClearLocalCookies) {
+                const clearCookieResult = await clearSiteCookiesApi(target.url);
+                if (!clearCookieResult.succeed) {
+                    return CommonResponse.error(-1, `❌ ${mySite.nickname || mySite.site} 清理现有 Cookie 失败：${clearCookieResult.msg}`);
+                }
+            }
+
+            console.log('要写入的Cookie信息：', pairs)
+            for (const pair of pairs) {
+                const [name, ...rest] = pair.trim().split('=');
+                const value = rest.join('=');
+                if (!name || !value) continue;
+                console.log(target.origin)
+                await browser.cookies.set({
+                    url: target.origin,
+                    name,
+                    value,
+                    domain: targetUrl.hostname,
+                    path: '/',
+                    secure: targetUrl.protocol === 'https:',
+                    httpOnly: false,
+                    sameSite: 'lax',
+                    expirationDate: Math.floor(Date.now() / 1000) + 3600 * 24 * 365,
+                });
+                cookieCount += 1;
+            }
+        }
+
+        let localStorageCount = 0;
+        if (hasRemoteLocalStorage) {
+            const currentLocalStorageResult = await getSiteLocalStorageApi({url: target.url});
+            const shouldClearLocalStorage = !currentLocalStorageResult.succeed
+                || Boolean(currentLocalStorageResult.data && currentLocalStorageResult.data.trim().length > 0);
+            if (shouldClearLocalStorage) {
+                const clearLocalStorageResult = await clearSiteLocalStorageApi(target.url);
+                if (!clearLocalStorageResult.succeed) {
+                    return CommonResponse.error(-1, `❌ ${mySite.nickname || mySite.site} 清理现有 LocalStorage 失败：${clearLocalStorageResult.msg}`);
+                }
+            }
+
+            const localStorageResult = await writeSiteLocalStorageApi({
+                url: target.url,
+                localStorageText: mySite.local_storage,
+            });
+            localStorageCount = localStorageResult.succeed ? localStorageResult.data?.written || 0 : 0;
+
+            if (!localStorageResult.succeed) {
+                return CommonResponse.error(
+                    -1,
+                    `❌ ${mySite.nickname || mySite.site} Cookie 写入 ${cookieCount} 项，但 mirror LocalStorage 未写入成功：${localStorageResult.msg}`,
+                );
+            }
         }
 
         return CommonResponse.success(
             null,
-            `✅${mySite.nickname || mySite.site} mirror Cookie 写入 ${cookieCount} 项，LocalStorage 写入 ${localStorageCount} 项！`,
+            `✅${mySite.nickname || mySite.site} mirror Cookie ${hasRemoteCookie ? `写入 ${cookieCount} 项` : '为空，已跳过'}，LocalStorage ${hasRemoteLocalStorage ? `写入 ${localStorageCount} 项` : '为空，已跳过'}！`,
         )
     } catch (err) {
         console.error(err);
