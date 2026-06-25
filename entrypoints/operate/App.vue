@@ -2615,11 +2615,12 @@ const openHarvester = () => {
 }
 
 .site-title-link {
+  display: inline-flex !important;
+  align-items: center;
   max-width: 150px;
   height: 24px;
   padding: 0 4px;
   overflow: hidden;
-  vertical-align: middle;
 }
 
 .site-title-link span {
@@ -2632,13 +2633,13 @@ const openHarvester = () => {
 
 .site-level {
   display: inline-flex;
+  align-items: center;
   max-width: 84px;
   overflow: hidden;
   color: #64748b;
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
-  vertical-align: middle;
 }
 
 .site-updated {
