@@ -32,6 +32,8 @@ export default defineBackground(() => {
             {id: MENU_IDS.SYNC, title: '🔄 同步站点'},
             {id: MENU_IDS.CLEAR_CACHE, title: '🧹 清理缓存'},
             {id: MENU_IDS.GET_COOKIE, title: '🍪 获取 Cookie'},
+            {id: MENU_IDS.CLEAR_COOKIE, title: '🧽 清理 Cookie'},
+            {id: MENU_IDS.WRITE_COOKIE, title: '📥 写入 Cookie'},
             {id: MENU_IDS.OPEN_HARVESTER, title: '🚜 打开收割机'},
         ];
 
@@ -142,7 +144,10 @@ export default defineBackground(() => {
                         console.log('syncTorrentsApi执行结果', response)
                         break;
                     case "getSiteCookies":
-                        const cookies = await browser.cookies.getAll({domain: request.payload.host})
+                        let cookies = await browser.cookies.getAll({url: `https://${request.payload.host}/`})
+                        if (cookies.length === 0) {
+                            cookies = await browser.cookies.getAll({url: `http://${request.payload.host}/`})
+                        }
                         console.log("后台获取到的 Cookie 内容：", cookies)
                         let cookieMap = new Map();
                         cookies.forEach(cookie => {
@@ -655,9 +660,8 @@ const clearSiteLocalStorageApi = async (url: string): Promise<CommonResponse<{ o
 
 const clearSiteCookiesApi = async (url: string): Promise<CommonResponse<{ origin: string; removed: number }>> => {
     const target = getSiteStorageTarget(url);
-    const targetUrl = new URL(target.url);
     try {
-        const cookies = await browser.cookies.getAll({domain: targetUrl.hostname});
+        const cookies = await browser.cookies.getAll({url: target.origin});
         let removed = 0;
         await Promise.allSettled(cookies.map(async (cookie) => {
             const cookieUrl = `${cookie.secure ? 'https' : 'http'}://${cookie.domain.replace(/^\./, '')}${cookie.path}`;
@@ -729,7 +733,7 @@ export async function writeSingleSiteCookiesApi(params: {
         if (hasRemoteCookie) {
             let shouldClearLocalCookies = true;
             try {
-                const currentCookies = await browser.cookies.getAll({domain: targetUrl.hostname});
+                const currentCookies = await browser.cookies.getAll({url: target.origin});
                 shouldClearLocalCookies = currentCookies.length > 0;
             } catch (error) {
                 console.warn(`${mySite.nickname || mySite.site} 本地 Cookie 检查失败，将按覆盖流程先清理：`, error);
@@ -751,7 +755,6 @@ export async function writeSingleSiteCookiesApi(params: {
                     url: target.origin,
                     name,
                     value,
-                    domain: targetUrl.hostname,
                     path: '/',
                     secure: targetUrl.protocol === 'https:',
                     httpOnly: false,

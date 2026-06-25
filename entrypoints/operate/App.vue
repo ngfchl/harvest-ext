@@ -160,6 +160,18 @@ const getUrlHostname = (url: string | null | undefined) => {
   }
 }
 
+const getUrlStorageKey = (url: string | null | undefined) => {
+  if (!url) {
+    return ''
+  }
+  try {
+    const parsedUrl = new URL(url)
+    return `${parsedUrl.protocol}//${parsedUrl.host}${parsedUrl.pathname.replace(/\/$/, '')}`
+  } catch {
+    return String(url).replace(/\/$/, '')
+  }
+}
+
 const hasLocalCookie = (cookie: string | null | undefined) => Boolean(cookie && cookie.trim().length > 0)
 const hasLocalStorageData = (storageText: string | null | undefined) => Boolean(storageText && storageText.trim().length > 0)
 const hasLocalSiteData = (cookie: string | null | undefined, storageText: string | null | undefined) => (
@@ -447,30 +459,32 @@ const doSort = (value: string = '') => {
 
 const getCookieByUrls = (urls: Array<string | null | undefined>) => {
   const cookieMap = cookieInfoMap.value || {};
+  const normalizedCookieMap = new Map(
+      Object.entries(cookieMap).map(([url, cookie]) => [getUrlStorageKey(url), cookie]),
+  );
   const exactUrlCookie = urls
       .filter(Boolean)
-      .map(url => cookieMap[url as string] || '')
+      .map(url => cookieMap[url as string] || normalizedCookieMap.get(getUrlStorageKey(url)) || '')
       .find(hasLocalCookie);
   if (exactUrlCookie) {
     return exactUrlCookie;
   }
-  const hosts = urls.map(getUrlHostname).filter(Boolean);
-  const matchedEntry = Object.entries(cookieMap).find(([url, cookie]) => hasLocalCookie(cookie) && hosts.includes(getUrlHostname(url)));
-  return matchedEntry?.[1] || '';
+  return '';
 }
 
 const getLocalStorageByUrls = (urls: Array<string | null | undefined>) => {
   const storageMap = localStorageInfoMap.value || {};
+  const normalizedStorageMap = new Map(
+      Object.entries(storageMap).map(([url, storageText]) => [getUrlStorageKey(url), storageText]),
+  );
   const exactUrlStorage = urls
       .filter(Boolean)
-      .map(url => storageMap[url as string] || '')
+      .map(url => storageMap[url as string] || normalizedStorageMap.get(getUrlStorageKey(url)) || '')
       .find(hasLocalStorageData);
   if (exactUrlStorage) {
     return exactUrlStorage;
   }
-  const hosts = urls.map(getUrlHostname).filter(Boolean);
-  const matchedEntry = Object.entries(storageMap).find(([url, storageText]) => hasLocalStorageData(storageText) && hosts.includes(getUrlHostname(url)));
-  return matchedEntry?.[1] || '';
+  return '';
 }
 
 const getCardGroup = (mySite: MySite | undefined, localCookie: string, localStorageText: string): UnifiedSiteGroupKey => {
@@ -750,14 +764,11 @@ const fetchAllSupportCookies = async () => {
   const tasks = urlList.map(async (url) => {
     try {
       const host = new URL(url).hostname;
-      const [cookie, localStorageResponse] = await Promise.all([
-        getCookieString(host),
-        getSiteLocalStorageString(url),
-      ]);
+      const cookie = await getCookieString(host);
       return {
         url,
         cookie: cookie.succeed ? cookie.data || '' : '',
-        localStorageText: localStorageResponse.succeed ? localStorageResponse.data || '' : '',
+        localStorageText: '',
       } as const;
     } catch (error) {
       console.warn(`Failed to get cookie for URL: ${url}`, error);
@@ -771,7 +782,7 @@ const fetchAllSupportCookies = async () => {
 
   const entries = await Promise.all(tasks);
   cookieInfoMap.value = Object.fromEntries(entries.map(item => [item.url, item.cookie]));
-  localStorageInfoMap.value = Object.fromEntries(entries.map(item => [item.url, item.localStorageText]));
+  localStorageInfoMap.value = {};
 
   console.log(cookieInfoMap.value)
 }

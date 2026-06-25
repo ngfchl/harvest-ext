@@ -256,6 +256,12 @@ const handleHarvestAction = async (action: string) => {
     case MENU_IDS.GET_COOKIE:
       await copyCookieString();
       break;
+    case MENU_IDS.CLEAR_COOKIE:
+      await clearCurrentSiteAuthData();
+      break;
+    case MENU_IDS.WRITE_COOKIE:
+      await writeCurrentSiteAuthData();
+      break;
     case MENU_IDS.OPEN_HARVESTER:
       await openHarvester();
       break;
