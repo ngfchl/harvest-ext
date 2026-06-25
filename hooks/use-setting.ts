@@ -31,6 +31,43 @@ export const useSettingStore = defineStore("setting", () => {
     const count = ref(0)
     const showText = ref('')
     /**
+     * 会话级图片 URL 缓存键
+     */
+    const CACHED_IMG_URL_KEY = 'session:cachedFloatImgUrl';
+
+    /**
+     * 通过后台脚本获取随机图片 API 重定向后的真实 URL
+     */
+    const resolveRealImageUrl = async (apiUrl: string): Promise<string | null> => {
+        try {
+            const response = await browser.runtime.sendMessage({
+                type: 'resolveRealImageUrl',
+                payload: {apiUrl},
+            });
+            return response?.succeed ? response.data || null : null;
+        } catch {
+            return null;
+        }
+    };
+
+    /**
+     * 获取会话级缓存的图片 URL：首次解析真实地址后缓存，后续直接复用
+     */
+    const getCachedFloatImgUrl = async (): Promise<string> => {
+        const existing = await browser.storage.session.get(CACHED_IMG_URL_KEY) as Record<string, string>;
+        if (existing[CACHED_IMG_URL_KEY]) {
+            return existing[CACHED_IMG_URL_KEY];
+        }
+        const rawUrl = setting.value.imgUrl || `${setting.value.baseUrl}favicon.ico`;
+        const realUrl = await resolveRealImageUrl(rawUrl);
+        if (realUrl) {
+            await browser.storage.session.set({[CACHED_IMG_URL_KEY]: realUrl});
+            return realUrl;
+        }
+        return "";
+    };
+
+    /**
      * 从存储加载设置
      */
     const getSetting = async () => {
@@ -536,6 +573,7 @@ export const useSettingStore = defineStore("setting", () => {
             }
         }
     }
+
     /**
      * 获取指定范围的随机数
      * @param min
@@ -1092,6 +1130,7 @@ export const useSettingStore = defineStore("setting", () => {
         filterMySiteBySiteName,
         filterSiteByHost,
         filterSiteById,
+        getCachedFloatImgUrl,
         getCookieString,
         getDownloaderCategorise,
         getDownloaders,
@@ -1112,6 +1151,7 @@ export const useSettingStore = defineStore("setting", () => {
         pushTorrent,
         refreshSingleSite,
         repeatInfo,
+        resolveRealImageUrl,
         saveSetting,
         searchSingleSite,
         sendSiteInfo,

@@ -72,6 +72,7 @@ const {
   autoSignAll,
   autoOpenAll,
   clearSiteAuthData,
+  getCachedFloatImgUrl,
 } = settingStore
 // const mySiteId = ref<number>(0)
 const collapsed = ref(false);
@@ -87,6 +88,8 @@ const cookieInfoMap = ref<{ [key: string]: string }>();
 const localStorageInfoMap = ref<{ [key: string]: string }>({});
 const operationLoadingMap = ref<Record<string, boolean>>({});
 const operationTextMap = ref<Record<string, string>>({});
+
+const cachedFloatImgUrl = ref<string>('');
 
 const mySites = computed(() => Object.values(mySiteList.value || {}));
 const siteStats = computed(() => ({
@@ -791,6 +794,7 @@ const initData = async () => {
   hadList.value = Object.values(mySiteList.value!).map(site => site.site)
   console.log('hadList:', hadList.value)
   await fetchAllSupportCookies()
+  cachedFloatImgUrl.value = await getCachedFloatImgUrl()
   await nextTick(async () => {
     checkScreenSize();
     window.addEventListener('resize', checkScreenSize);
@@ -1217,7 +1221,7 @@ const openHarvester = () => {
                 <div class="float-image-preview">
                   <a-avatar :fallback="`${setting.baseUrl}favicon.ico`"
                             :size="setting.imgSize"
-                            :src="`${setting.imgUrl ? setting.imgUrl : `${setting.baseUrl}favicon.ico`}`"
+                            :src="cachedFloatImgUrl"
                   />
                 </div>
                 <div class="float-image-controls">

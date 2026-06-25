@@ -111,6 +111,10 @@ export default defineBackground(() => {
                         response = await getWebSiteListApi(request.payload)
                         console.log('获取站点配置列表执行结果', response)
                         break;
+                    case "resolveRealImageUrl":
+                        response = await resolveRealImageUrlApi(request.payload)
+                        console.log('解析随机图片地址执行结果', response)
+                        break;
                     case "getMySiteList":
                         response = await getMySiteListApi(request.payload)
                         console.log('获取已有站点列表执行结果', response)
@@ -205,6 +209,20 @@ const getWebSiteListApi = async (params: {
         path: path,
         method: 'GET',
     })
+}
+
+const resolveRealImageUrlApi = async (params: {
+    apiUrl: string,
+}) => {
+    try {
+        const response = await fetch(params.apiUrl, {
+            method: 'HEAD',
+            redirect: 'follow',
+        });
+        return CommonResponse.success(response.url);
+    } catch (error) {
+        return CommonResponse.error(-1, `解析随机图片地址失败: ${error}`);
+    }
 }
 
 /**

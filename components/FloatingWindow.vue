@@ -52,10 +52,12 @@ const {
   cacheServerData,
   loadCoreFromCacheIfAvailable,
   clearSiteAuthData,
+  resolveRealImageUrl,
   writeSingleSiteCookies,
 } = settingStore
 
 const drawer = ref(false)
+const cachedFloatImgUrl = ref<string>('')
 const repeat_info = ref<RepeatInfo>({
   url_list: [],
   can_list: []
@@ -217,6 +219,26 @@ onMounted(async () => {
   // 从本地存储加载站点信息
   await loadLocalStorage();
   await initializePromise
+  // 从站点会话存储读取/写入缓存的图片 URL
+  const FLOAT_IMG_KEY = 'harvest:cachedFloatImgUrl';
+  let cachedUrl = sessionStorage.getItem(FLOAT_IMG_KEY);
+  if (!cachedUrl) {
+    const rawUrl = setting.value.imgUrl;
+    console.log("当前RAW地址：", rawUrl)
+
+    try {
+      cachedUrl = await resolveRealImageUrl(rawUrl);
+      console.log("获取 302 地址", cachedUrl)
+      if (cachedUrl) {
+        sessionStorage.setItem(FLOAT_IMG_KEY, cachedUrl);
+      }
+    } catch {
+
+    }
+
+  }
+  cachedFloatImgUrl.value = cachedUrl || `${setting.value.baseUrl}favicon.ico`;
+  console.log("当前LOGO地址：", cachedFloatImgUrl.value)
   await loadLocalStorage()
 
   // await getSiteInfo()
@@ -1291,7 +1313,9 @@ const evaluateJoinedValue = (contextNode: Node, rule: string | null | undefined,
   return evaluateValue(contextNode, rule, options)
 }
 
-const evaluateDisplayValue = (contextNode: Node, rule: string | null | undefined, options: { tbody?: boolean } = {}) => {
+const evaluateDisplayValue = (contextNode: Node, rule: string | null | undefined, options: {
+  tbody?: boolean
+} = {}) => {
   const nodes = evaluateNodes(contextNode, rule, options)
   if (nodes.length > 0) {
     const value = readDisplayNodeValue(nodes[0])
@@ -2079,11 +2103,11 @@ const push_torrent = async (
         toRaw(mySiteId.value),
         category,
         toRaw(siteInfo.value.name),
-	        toRaw(cookie.value),
-	        save_path,
-	        toRaw(url_list.value),
-	        options,
-	    );
+        toRaw(cookie.value),
+        save_path,
+        toRaw(url_list.value),
+        options,
+    );
     console.log(res);
 
     if (!res || res.code !== 0) {
@@ -2168,7 +2192,7 @@ const getPopupContainer = () => getModalContainer()
     <div id="drawer-container"></div>
     <div class="harvest-img">
       <a-avatar :fallback="`${setting.baseUrl}favicon.ico`" :size="setting.imgSize"
-                :src="`${setting.imgUrl ? setting.imgUrl : `${setting.baseUrl}favicon.ico`}`"
+                :src="cachedFloatImgUrl"
       />
       <DragOutlined class="move-item" @mousedown="onMouseDown"/>
     </div>
@@ -2183,9 +2207,9 @@ const getPopupContainer = () => getModalContainer()
       </div>
       <a-slider
           v-model:value="setting.imgSize"
-          class="harvest-size-slider"
           :max="100"
           :min="36"
+          class="harvest-size-slider"
           @after-change="saveSetting"/>
       <a-button
           :href="setting.baseUrl" block
@@ -2199,8 +2223,8 @@ const getPopupContainer = () => getModalContainer()
         收割机
       </a-button>
       <a-button
-          block danger
-          class="harvest-action"
+          block class="harvest-action"
+          danger
           size="small"
           type="text"
           @click="resetPosition"
@@ -2212,8 +2236,8 @@ const getPopupContainer = () => getModalContainer()
       </a-button>
       <a-button
           block
-          danger
           class="harvest-action"
+          danger
           size="small"
           type="text"
           @click="clearCurrentCache">
@@ -2267,10 +2291,10 @@ const getPopupContainer = () => getModalContainer()
         获取Cookie
       </a-button>
       <a-button
+          :loading="authDataActionLoading === 'clear'"
           block
           class="harvest-action"
           danger
-          :loading="authDataActionLoading === 'clear'"
           size="small"
           type="text"
           @click="clearCurrentSiteAuthData">
@@ -2280,9 +2304,9 @@ const getPopupContainer = () => getModalContainer()
         清理Cookie
       </a-button>
       <a-button
+          :loading="authDataActionLoading === 'write'"
           block
           class="harvest-action"
-          :loading="authDataActionLoading === 'write'"
           size="small"
           type="text"
           @click="writeCurrentSiteAuthData">
@@ -2449,7 +2473,8 @@ const getPopupContainer = () => getModalContainer()
 
           <div class="torrent-toolbar-meta">
             <div class="torrent-count">
-              共 {{ torrents.length }} 条，当前 {{ filteredTorrents.length }} 条，可推送 {{ pushableFilteredTorrents.length }} 条，已选 {{ selectedTorrents.length }} 条
+              共 {{ torrents.length }} 条，当前 {{ filteredTorrents.length }} 条，可推送
+              {{ pushableFilteredTorrents.length }} 条，已选 {{ selectedTorrents.length }} 条
             </div>
           </div>
 
@@ -2458,8 +2483,8 @@ const getPopupContainer = () => getModalContainer()
             <a-popover
                 :get-popup-container="getPopupContainer"
                 overlay-class-name="torrent-filter-popover"
-                trigger="click"
-                placement="bottomLeft">
+                placement="bottomLeft"
+                trigger="click">
               <template #content>
                 <div class="torrent-popover-card">
                   <div class="torrent-popover-title">排序</div>
@@ -2502,8 +2527,8 @@ const getPopupContainer = () => getModalContainer()
             <a-popover
                 :get-popup-container="getPopupContainer"
                 overlay-class-name="torrent-filter-popover"
-                trigger="click"
-                placement="bottomLeft">
+                placement="bottomLeft"
+                trigger="click">
               <template #content>
                 <div class="torrent-popover-card">
                   <div class="torrent-popover-head">
@@ -2532,8 +2557,8 @@ const getPopupContainer = () => getModalContainer()
             <a-popover
                 :get-popup-container="getPopupContainer"
                 overlay-class-name="torrent-filter-popover"
-                trigger="click"
-                placement="bottomLeft">
+                placement="bottomLeft"
+                trigger="click">
               <template #content>
                 <div class="torrent-popover-card">
                   <div class="torrent-popover-head">
@@ -2562,8 +2587,8 @@ const getPopupContainer = () => getModalContainer()
             <a-popover
                 :get-popup-container="getPopupContainer"
                 overlay-class-name="torrent-filter-popover"
-                trigger="click"
-                placement="bottomLeft">
+                placement="bottomLeft"
+                trigger="click">
               <template #content>
                 <div class="torrent-popover-card">
                   <div class="torrent-popover-head">
@@ -2626,12 +2651,17 @@ const getPopupContainer = () => getModalContainer()
               <div class="torrent-card-main">
                 <div class="torrent-card-head">
                   <div class="torrent-card-title">{{ getTorrentCardTitle(torrent) }}</div>
-                  <a-tag v-if="torrent.sale_status" class="torrent-sale-tag" color="green">{{ torrent.sale_status }}</a-tag>
+                  <a-tag v-if="torrent.sale_status" class="torrent-sale-tag" color="green">{{
+                      torrent.sale_status
+                    }}
+                  </a-tag>
                 </div>
                 <div v-if="torrent.subtitle" class="torrent-card-subtitle">{{ torrent.subtitle }}</div>
                 <a-space class="torrent-card-tags" size="small" wrap>
                   <a-tag v-if="torrent.category" color="blue">{{ torrent.category }}</a-tag>
-                  <a-tag v-for="tag in getTorrentTags(torrent).slice(0, 6)" :key="`${torrent.key}-${tag}`" color="purple">{{ tag }}</a-tag>
+                  <a-tag v-for="tag in getTorrentTags(torrent).slice(0, 6)" :key="`${torrent.key}-${tag}`"
+                         color="purple">{{ tag }}
+                  </a-tag>
                 </a-space>
                 <div class="torrent-card-stats">
                   <span v-if="torrent.size" class="torrent-stat-pill size">
@@ -2713,7 +2743,7 @@ const getPopupContainer = () => getModalContainer()
               {{ selectedTorrents.length }} 个任务 · {{ pushSavePath || '未设置保存路径' }}
             </div>
           </div>
-          <a-tag class="push-provider-tag" :color="pushIsQb ? 'blue' : 'orange'">
+          <a-tag :color="pushIsQb ? 'blue' : 'orange'" class="push-provider-tag">
             {{ pushIsQb ? 'qBittorrent' : 'Transmission' }}
           </a-tag>
         </div>
@@ -2795,10 +2825,10 @@ const getPopupContainer = () => getModalContainer()
                 <div class="push-torrent-title">批量添加 {{ selectedTorrents.length }} 个种子</div>
                 <div class="push-torrent-subtitle">将按当前选择列表推送到下载器</div>
                 <a-textarea
+                    :rows="3"
                     :value="url_list.join('\n')"
                     class="push-url-textarea"
-                    readonly
-                    :rows="3"/>
+                    readonly/>
               </div>
             </div>
           </section>
