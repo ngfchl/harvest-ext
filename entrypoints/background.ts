@@ -148,23 +148,7 @@ export default defineBackground(() => {
                         console.log('syncTorrentsApi执行结果', response)
                         break;
                     case "getSiteCookies":
-                        let cookies = await browser.cookies.getAll({url: `https://${request.payload.host}/`})
-                        if (cookies.length === 0) {
-                            cookies = await browser.cookies.getAll({url: `http://${request.payload.host}/`})
-                        }
-                        console.log("后台获取到的 Cookie 内容：", cookies)
-                        let cookieMap = new Map();
-                        cookies.forEach(cookie => {
-                            if (!cookieMap.has(cookie.name)) {
-                                cookieMap.set(cookie.name, cookie.value);
-                            }
-                        });
-
-                        let data = Array.from(cookieMap.entries())
-                            .map(([name, value]) => `${name}=${value}`)
-                            .join('; ');
-
-                        response = data.length > 0 ? CommonResponse.success(data) : CommonResponse.error(-1, 'Cookie获取失败！')
+                        response = await getSiteCookiesApi(request.payload)
                         break
                     default: {
                         response = CommonResponse.error(-1, `未知操作！${request.type}`);
@@ -499,6 +483,72 @@ const getSiteStorageTarget = (url: string) => {
         url: parsedUrl.toString(),
         origin: `${parsedUrl.origin}/`,
     };
+}
+
+const parseCookieLookupTarget = (target: string) => {
+    const normalizedTarget = target.trim();
+    if (!normalizedTarget) {
+        throw new Error('缺少站点地址');
+    }
+
+    if (/^[a-z][a-z0-9+.-]*:\/\//i.test(normalizedTarget)) {
+        const url = new URL(normalizedTarget);
+        url.hash = '';
+        return url;
+    }
+
+    const url = new URL(`https://${normalizedTarget}`);
+    url.hash = '';
+    return url;
+}
+
+const buildCookieLookupOptions = (params: { host?: string, url?: string }) => {
+    const target = parseCookieLookupTarget(params.url || params.host || '');
+    const hostWithPort = target.host;
+    const urls = new Set<string>();
+
+    urls.add(target.toString());
+    urls.add(`${target.origin}/`);
+    urls.add(`https://${hostWithPort}/`);
+    urls.add(`http://${hostWithPort}/`);
+
+    return {
+        urls: Array.from(urls),
+    };
+}
+
+const getSiteCookiesApi = async (params: { host?: string, url?: string }): Promise<CommonResponse<string>> => {
+    try {
+        const lookupOptions = buildCookieLookupOptions(params);
+        const urlCookieResults = await Promise.allSettled(lookupOptions.urls.map(url => browser.cookies.getAll({url})));
+        const sortCookies = (cookies: Browser.cookies.Cookie[]) => cookies.sort((a, b) => {
+            const pathDiff = (b.path || '').length - (a.path || '').length;
+            if (pathDiff !== 0) {
+                return pathDiff;
+            }
+            return Number(Boolean(b.hostOnly)) - Number(Boolean(a.hostOnly));
+        });
+        const cookies = sortCookies(urlCookieResults
+            .flatMap(result => result.status === 'fulfilled' ? result.value : [])
+        );
+
+        console.log("后台获取到的 Cookie 内容：", cookies, 'lookup:', lookupOptions)
+        const cookieMap = new Map<string, string>();
+        cookies.forEach(cookie => {
+            if (!cookieMap.has(cookie.name)) {
+                cookieMap.set(cookie.name, cookie.value);
+            }
+        });
+
+        const data = Array.from(cookieMap.entries())
+            .map(([name, value]) => `${name}=${value}`)
+            .join('; ');
+
+        return data.length > 0 ? CommonResponse.success(data) : CommonResponse.error(-1, 'Cookie获取失败！')
+    } catch (error) {
+        console.error('获取站点 Cookie 失败:', error);
+        return CommonResponse.error(-1, `Cookie获取失败：${error}`);
+    }
 }
 
 const waitForTabComplete = async (tabId: number, alreadyComplete = false, timeout = 15000) => {

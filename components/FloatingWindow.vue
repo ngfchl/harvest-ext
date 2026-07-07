@@ -3163,6 +3163,11 @@ const getPopupContainer = () => getModalContainer()
   transition: opacity 0.18s ease, transform 0.18s ease;
 }
 
+.harvest-wrap,
+.harvest-wrap * {
+  box-sizing: border-box;
+}
+
 .harvest-wrap:hover {
   opacity: 1.0;
 }
@@ -3260,6 +3265,7 @@ const getPopupContainer = () => getModalContainer()
 .harvest-menu {
   display: grid;
   width: 128px;
+  max-width: calc(100vw - 16px);
   gap: 6px;
   padding: 8px;
   border: 1px solid rgba(210, 220, 232, 0.92);
@@ -4363,6 +4369,10 @@ const getPopupContainer = () => getModalContainer()
   box-shadow: 0 20px 55px rgba(15, 23, 42, 0.24);
 }
 
+:global(.harvest-modal-wrap .ant-modal) {
+  max-width: calc(100vw - 24px);
+}
+
 :global(.harvest-modal-wrap .ant-modal-header) {
   padding: 12px 16px;
   border-bottom: 1px solid #e6edf5;
@@ -4619,6 +4629,40 @@ const getPopupContainer = () => getModalContainer()
 }
 
 @media (max-width: 640px) {
+  .harvest-wrap {
+    width: 118px;
+  }
+
+  .harvest-img,
+  .harvest-menu {
+    width: 118px;
+  }
+
+  .harvest-menu {
+    padding: 7px;
+  }
+
+  .harvest-action {
+    height: 28px;
+    padding: 0 7px;
+  }
+
+  :global(.harvest-modal-wrap .ant-modal) {
+    top: 12px;
+    width: calc(100vw - 20px) !important;
+    margin: 0 auto;
+    padding-bottom: 12px;
+  }
+
+  :global(.harvest-modal-wrap .ant-modal-body) {
+    max-height: calc(100vh - 132px);
+    overflow: auto;
+  }
+
+  :global(.ant-drawer-content-wrapper) {
+    width: min(400px, 100vw) !important;
+  }
+
   .torrent-toolbar {
     grid-template-columns: 1fr;
   }
@@ -4643,6 +4687,7 @@ const getPopupContainer = () => getModalContainer()
   }
 
   .torrent-list-action-buttons {
+    flex-wrap: wrap;
     width: 100%;
   }
 
@@ -4681,6 +4726,7 @@ const getPopupContainer = () => getModalContainer()
   }
 
   .push-action-buttons {
+    flex-wrap: wrap;
     width: 100%;
   }
 
@@ -4700,6 +4746,53 @@ const getPopupContainer = () => getModalContainer()
 
   .site-data-site {
     max-width: 100%;
+  }
+}
+
+@media (max-width: 420px) {
+  .harvest-wrap {
+    width: 112px;
+  }
+
+  .harvest-img,
+  .harvest-menu {
+    width: 112px;
+  }
+
+  .harvest-menu-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .harvest-page-tag {
+    max-width: 100%;
+  }
+
+  .torrent-card-head,
+  .push-torrent-preview,
+  .push-batch-preview {
+    flex-direction: column;
+  }
+
+  .torrent-sale-tag,
+  .torrent-stat-pill,
+  .push-meta-pill {
+    max-width: 100%;
+  }
+
+  .push-option-row,
+  .push-inline-field,
+  .push-layout-row {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .push-option-row span,
+  .push-inline-field span,
+  .push-layout-row span {
+    flex: none;
+    line-height: 18px;
   }
 }
 </style>

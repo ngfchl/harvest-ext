@@ -654,9 +654,8 @@ const refreshLocalSiteData = async (urls: Array<string | null | undefined>) => {
   const validUrls = Array.from(new Set(urls.filter((url): url is string => Boolean(url))));
   const entries = await Promise.all(validUrls.map(async (url) => {
     try {
-      const host = new URL(url).hostname;
       const [cookie, localStorageResponse] = await Promise.all([
-        getCookieString(host),
+        getCookieString(url),
         getSiteLocalStorageString(url),
       ]);
       return {
@@ -766,8 +765,7 @@ const fetchAllSupportCookies = async () => {
   urlList = Array.from(new Set(urlList));
   const tasks = urlList.map(async (url) => {
     try {
-      const host = new URL(url).hostname;
-      const cookie = await getCookieString(host);
+      const cookie = await getCookieString(url);
       return {
         url,
         cookie: cookie.succeed ? cookie.data || '' : '',
@@ -2044,10 +2042,13 @@ const openHarvester = () => {
 
 .operate-page {
   min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   background: #f4f7fb;
 }
 
 .app-sider {
+  overflow: hidden auto;
   background: #ffffff !important;
   border-right: 1px solid #e6edf5;
   box-shadow: 2px 0 12px rgba(15, 23, 42, 0.04);
@@ -2068,6 +2069,9 @@ const openHarvester = () => {
 }
 
 .main-layout {
+  min-width: 0;
+  height: 100vh;
+  overflow: hidden;
   background: #f4f7fb;
 }
 
@@ -2095,6 +2099,7 @@ const openHarvester = () => {
 }
 
 .custom-header {
+  flex-shrink: 0;
   min-height: 52px;
   height: 52px;
   background: #155e75 !important;
@@ -2119,6 +2124,21 @@ const openHarvester = () => {
   justify-content: flex-end;
   gap: 4px;
   min-width: 0;
+}
+
+.toolbar-actions :deep(.ant-btn-text) {
+  display: inline-flex;
+  align-items: center;
+  max-width: 150px;
+  overflow: hidden;
+  color: #ffffff;
+}
+
+.toolbar-actions :deep(.ant-btn-text span) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .title {
@@ -2322,7 +2342,9 @@ const openHarvester = () => {
 
 .content {
   display: block;
+  min-height: 0;
   padding: 12px;
+  overflow-y: auto;
   overflow-x: hidden;
 }
 
@@ -2336,6 +2358,8 @@ const openHarvester = () => {
 
 .site-panel {
   width: 100%;
+  max-width: 1760px;
+  margin: 0 auto;
 }
 
 .unified-panel {
@@ -2349,6 +2373,10 @@ const openHarvester = () => {
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   background: #ffffff;
+}
+
+.unified-group :deep(.ant-ribbon-wrapper) {
+  height: 100%;
 }
 
 .unified-group-header {
@@ -2566,6 +2594,7 @@ const openHarvester = () => {
 
 .site-card {
   width: 100% !important;
+  height: 100%;
   min-width: 0;
   overflow: hidden;
   border: 1px solid #e2e8f0;
@@ -2750,6 +2779,18 @@ const openHarvester = () => {
   white-space: nowrap;
 }
 
+.clear-auth-action {
+  color: #b91c1c !important;
+  border-color: #fecaca !important;
+  background: #fff1f2 !important;
+}
+
+.clear-auth-action:hover {
+  color: #991b1b !important;
+  border-color: #fca5a5 !important;
+  background: #fee2e2 !important;
+}
+
 .support-url-actions :deep(.ant-btn) {
   height: 24px;
   padding: 0 7px;
@@ -2775,16 +2816,58 @@ const openHarvester = () => {
 }
 
 @media (max-width: 768px) {
+  .operate-page {
+    display: block;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  .app-sider:not(.login-sider) {
+    position: fixed !important;
+    z-index: 20;
+    height: 100vh;
+    box-shadow: 8px 0 24px rgba(15, 23, 42, 0.12);
+  }
+
+  .main-layout {
+    height: 100vh;
+  }
+
+  .custom-header.toolbar-header {
+    height: auto;
+    min-height: 52px;
+    padding: 8px;
+  }
+
+  .toolbar-row,
+  .toolbar-row :deep(.ant-col) {
+    width: 100%;
+  }
+
   .content {
     padding: 8px;
   }
 
   .toolbar-actions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
     width: 100%;
+  }
+
+  .toolbar-actions :deep(.ant-input-affix-wrapper),
+  .toolbar-actions :deep(.ant-input-group-wrapper) {
+    flex: 1 1 180px;
+    min-width: 0;
   }
 
   .stats-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .unified-group-header {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
   }
 }
 
@@ -2819,6 +2902,11 @@ const openHarvester = () => {
   .support-url-state,
   .support-url-actions {
     justify-content: flex-start;
+  }
+
+  .site-action-bar :deep(.ant-btn) {
+    flex: 1 1 calc(50% - 4px);
+    min-width: 0;
   }
 }
 

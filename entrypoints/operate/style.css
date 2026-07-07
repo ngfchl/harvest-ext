@@ -1,12 +1,22 @@
 
+html,
 body {
     margin: 0;
-    /*min-width: 320px;*/
-    /*height: 95vh;*/
     padding: 0;
-    width: 100vw;
-    /*height: 100%;*/
+    width: 100%;
+    min-width: 320px;
+    height: 100%;
+    overflow: hidden;
     box-sizing: border-box;
+    background: #f4f7fb;
+    color: #172033;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: inherit;
 }
 
 .ant-alert-content > .ant-alert-description {
@@ -17,8 +27,15 @@ body {
     margin: 0;
     display: flex;
     flex-direction: column;
-    height: 98vh; /* 使用视口高度 */
-    width: 100vw;
+    min-height: 100vh;
+    width: 100%;
+    overflow: hidden;
+}
+
+.ant-layout,
+.ant-layout-sider,
+.ant-layout-content {
+    min-width: 0;
 }
 
 @media (prefers-color-scheme: light) {

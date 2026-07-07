@@ -480,9 +480,8 @@ export const useSettingStore = defineStore("setting", () => {
             site.mirror,
             ...(webSiteList.value?.[site.site]?.url || []),
         ].filter((url): url is string => Boolean(url))));
-        let {host} = new URL(site.mirror);
         const [cookieResponse, ...localStorageResponses] = await Promise.all([
-            getCookieString(host),
+            getCookieString(site.mirror),
             ...localStorageUrls.map(url => getSiteLocalStorageString(url)),
         ]);
         const cookieData = cookieResponse.succeed ? cookieResponse.data || '' : '';
@@ -816,11 +815,9 @@ export const useSettingStore = defineStore("setting", () => {
         console.log(`正在添加站点： ${site.name} `);
         for (const url of site.url) {
             try {
-                // 从 URL 生成host
-                const {host} = new URL(url);
-                // 使用 host 获取站点 Cookie，同时读取 localStorage，用于兼容 token 型站点
+                // 使用完整 URL 获取站点 Cookie，同时读取 localStorage，用于兼容 token 型站点
                 const [cookieResponse, localStorageResponse] = await Promise.all([
-                    getCookieString(host),
+                    getCookieString(url),
                     getSiteLocalStorageString(url),
                 ]);
                 const hasAuthCookie = cookieResponse.succeed
@@ -903,33 +900,29 @@ export const useSettingStore = defineStore("setting", () => {
 
     /**
      * 保存站点信息到服务器
-     * @param host
+     * @param siteUrlOrHost
      */
-    const getCookieString = async (host: string) => {
+    const getCookieString = async (siteUrlOrHost: string) => {
         var cookies;
-        if (host.includes('m-team')) {
+        if (siteUrlOrHost.includes('m-team')) {
             let auth = localStorage.getItem('auth');
             if (!auth) {
 
                 return CommonResponse.error(-1, "MTeam Cookie 信息获取失败！")
             }
             return CommonResponse.success(auth);
-        } else if (host.includes('rousi.pro')) {
+        } else if (siteUrlOrHost.includes('rousi.pro')) {
             let auth = localStorage.getItem('token');
             if (!auth) {
                 return CommonResponse.error(-1, "Rousi Cookie 信息获取失败！")
             }
             return CommonResponse.success(auth);
         } else {
-            const domainSplitList = host.split('.')
-            if (domainSplitList.length > 2) {
-                host = domainSplitList.slice(1).join('.')
-            }
             cookies = await browser.runtime.sendMessage({
                 type: 'getSiteCookies',
                 payload: {
                     setting: toRaw(setting.value),
-                    host: host,
+                    url: siteUrlOrHost,
                 }
             });
         }
