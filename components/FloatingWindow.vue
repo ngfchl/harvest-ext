@@ -4659,7 +4659,7 @@ const getPopupContainer = () => getModalContainer()
     overflow: auto;
   }
 
-  :global(.ant-drawer-content-wrapper) {
+  :global(#drawer-container .ant-drawer-content-wrapper) {
     width: min(400px, 100vw) !important;
   }
 
