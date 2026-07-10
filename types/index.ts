@@ -144,7 +144,7 @@ export interface WebSite {
     hr_discern: boolean;
     search_torrents: boolean;
     page_index: string;
-    page_torrents: string;
+    page_torrents: string | string[];
     page_sign_in: string;
     page_control_panel: string;
     page_detail: string;
@@ -221,7 +221,7 @@ export interface WebSite {
     page_pieces_hash_api: string;
     pieces_repeat: boolean;
     proxy: boolean;
-    imdb_search: string;
+    imdb_search: string | string[];
     structure: string;
     type: string;
     nation: string;

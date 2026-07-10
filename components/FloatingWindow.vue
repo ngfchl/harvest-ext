@@ -568,6 +568,7 @@ type SitePageType =
     | 'detail'
     | 'user'
     | 'search'
+    | 'imdb_search'
     | 'message'
     | 'hr'
     | 'mybonus'
@@ -581,6 +582,7 @@ const sitePageLabels: Record<Exclude<SitePageType, null>, string> = {
   detail: '种子详情页',
   user: '用户个人主页',
   search: '搜索页',
+  imdb_search: 'IMDB搜索页',
   message: '消息页面',
   hr: 'HR 页面',
   mybonus: '魔力页面',
@@ -674,7 +676,7 @@ const pagePathMatches = (config: PageConfig) => {
 
   return toPageConfigList(config).some((item) => {
     const normalizedConfig = normalizePagePath(item)
-    const {pathname: configPathname} = splitPagePath(normalizedConfig)
+    const {pathname: configPathname, search: configSearch} = splitPagePath(normalizedConfig)
     const shouldMatchSearch = hasMeaningfulSearch(normalizedConfig)
 
     if (item.includes('{}')) {
@@ -691,8 +693,13 @@ const pagePathMatches = (config: PageConfig) => {
 
       const target = shouldMatchSearch ? currentPath : currentPathname
       const regexConfig = shouldMatchSearch ? normalizedConfig : configPathname
-      const regexSource = regexConfig.split('{}').map(escapeRegExp).join('[^/?&#]+')
-      const regexSuffix = shouldMatchSearch ? '(?:[&#].*)?' : ''
+      const regexSuffix = shouldMatchSearch ? '(?:\\?.*)?' : ''
+      const [pathPart, queryPart] = regexConfig.split('?')
+      let regexSource = pathPart.split('{}').map(escapeRegExp).join('[^/?&#]+')
+      if (queryPart) {
+        const queryRegex = queryPart.split('{}').map(escapeRegExp).join('[^/?&#]+')
+        regexSource += `(?:\\?${queryRegex})?`
+      }
       return new RegExp(`^${regexSource}${regexSuffix}$`).test(target)
     }
 
@@ -710,6 +717,7 @@ const detectCurrentSitePage = (): SitePageType => {
     {type: 'user', config: siteInfo.value.page_user},
     {type: 'control_panel', config: pageControlPanel},
     {type: 'search', config: siteInfo.value.page_search},
+    {type: 'imdb_search', config: siteInfo.value.imdb_search},
     {type: 'torrents', config: siteInfo.value.page_torrents},
     {type: 'sign_in', config: siteInfo.value.page_sign_in},
     {type: 'message', config: siteInfo.value.page_message},
@@ -780,8 +788,8 @@ async function init_button() {
     return;
   }
 
-  if (current_site_page.value === 'torrents' || current_site_page.value === 'search') {
-    console.log(current_site_page.value === 'search' ? '当前为搜索页' : '当前为种子列表页')
+  if (current_site_page.value === 'torrents' || current_site_page.value === 'search' || current_site_page.value === 'imdb_search') {
+    console.log(current_site_page.value === 'search' ? '当前为搜索页' : current_site_page.value === 'imdb_search' ? '当前为IMDB搜索页' : '当前为种子列表页')
     torrent_list_page.value = true
     await nextTick(async () => {
       // 可以在这里操作已经渲染的 DOM 元素或执行其他需要在 DOM 渲染完成后执行的逻辑
