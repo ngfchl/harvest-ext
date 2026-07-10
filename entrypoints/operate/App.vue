@@ -2341,8 +2341,8 @@ const openHarvester = () => {
 }
 
 .content {
-  display: block;
-  min-height: 0;
+  flex: 1 1 0% !important;
+  min-height: 0 !important;
   padding: 12px;
   overflow-y: auto;
   overflow-x: hidden;
