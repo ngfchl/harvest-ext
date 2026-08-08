@@ -8,8 +8,6 @@ import {
     serializeLocalStorageEntries,
 } from "@/utils/localStorageString";
 
-const CLOSE_TAB_AFTER_ADD_DELAY_MS = 3000;
-
 export default defineBackground(() => {
 
     // 注册右键菜单
@@ -150,6 +148,17 @@ export default defineBackground(() => {
                     case "getSiteCookies":
                         response = await getSiteCookiesApi(request.payload)
                         break
+                    case "closeCurrentTab": {
+                        if (sender.tab?.id) {
+                            browser.tabs.remove(sender.tab.id).catch(error => {
+                                console.warn('关闭当前标签页失败:', error);
+                            });
+                            response = CommonResponse.success(null);
+                        } else {
+                            response = CommonResponse.error(-1, '无法获取当前标签页');
+                        }
+                        break;
+                    }
                     default: {
                         response = CommonResponse.error(-1, `未知操作！${request.type}`);
                     }
@@ -334,25 +343,7 @@ async function sendSiteInfoApi(params: {
         body: JSON.stringify(params.data),
         contentType: "application/json",
     });
-    console.log(`站点同步结果：closeTabOnSuccess=${params.closeTabOnSuccess} succeed=${response.succeed}`);
-    if (response.succeed && params.closeTabOnSuccess && sender.tab?.id) {
-        const tabId = sender.tab.id;
-        browser.tabs.sendMessage(tabId, {
-            type: 'HARVEST_NOTIFY',
-            payload: {
-                type: 'success',
-                text: '添加成功，稍后关闭页面',
-            },
-        }).catch(error => {
-            console.warn('发送添加成功提示失败:', error);
-        });
-        setTimeout(() => {
-            browser.tabs.remove(tabId).catch(error => {
-                console.warn('延时关闭添加页面失败:', error);
-            });
-        }, CLOSE_TAB_AFTER_ADD_DELAY_MS);
-    }
-
+    console.log(`站点同步结果：succeed=${response.succeed}`);
     return response
 }
 

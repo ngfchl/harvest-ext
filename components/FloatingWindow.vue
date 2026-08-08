@@ -424,6 +424,65 @@ async function go_to_control_page() {
   window.location = url;
 }
 
+/**
+ * 跨页面补全同步的 sessionStorage 标记 key
+ */
+const RESYNC_JUMP_FLAG = 'harvest_resync_jump';
+
+/**
+ * 构建带 UID 替换的页面 URL
+ * @param rawUrl 站点配置里的页面路径（可能含 {}）
+ * @returns 处理后的完整 URL；若需要 UID 但解析失败则返回 null
+ */
+async function buildSyncPageUrl(rawUrl: string): Promise<string | null> {
+  let url = rawUrl
+  if (!url) return null
+  if (!url.startsWith('/')) {
+    url = `/${url}`
+  }
+  if (url.includes('{}')) {
+    const UserIdRes = await getUid()
+    if (!UserIdRes.succeed) {
+      console.warn('构建跳转地址时 UID 解析失败，放弃跳转补全')
+      return null
+    }
+    url = `${location.origin}/${url.replace('{}', myUid.value)}`
+  } else if (!url.startsWith('http')) {
+    url = `${location.origin}${url}`
+  }
+  return url
+}
+
+/**
+ * 获取"另一个"同步页面的 URL
+ * 当前是 user → 返回 control_panel；当前是 control_panel → 返回 user
+ * @returns 另一个页面的完整 URL，若不存在或无法构建则返回 null
+ */
+async function getOtherSyncPageUrl(): Promise<string | null> {
+  if (!siteInfo.value) return null
+  const current = detectCurrentSitePage()
+  let targetRaw: string | undefined
+  if (current === 'user') {
+    targetRaw = siteInfo.value.page_control_panel
+  } else if (current === 'control_panel') {
+    targetRaw = siteInfo.value.page_user
+  }
+  if (!targetRaw) return null
+  return await buildSyncPageUrl(targetRaw)
+}
+
+/**
+ * 判断当前页面与"另一个"同步页面是否是同一个页面
+ * 用于跳过跳转补全（部分站点个人信息页和控制面板页是同一个页面）
+ */
+async function isOtherSyncPageSame(): Promise<boolean> {
+  const otherUrl = await getOtherSyncPageUrl()
+  if (!otherUrl) return true
+  const otherPath = normalizePagePath(otherUrl)
+  const currentPath = normalizePagePath(getCurrentPagePath())
+  return otherPath === currentPath
+}
+
 async function getUid() {
   let node = document.evaluate(siteInfo.value.my_uid_rule, document).iterateNext();
   console.log('解析UID元素节点', node)
@@ -566,8 +625,26 @@ async function doSendSiteInfo(data: Record<string, any>, options: { closeTabOnSu
     console.log('站点信息获取结果', res);
     if (!res.succeed) {
       message.error(res.msg);
-    } else {
-      message.success(res.msg);
+      return
+    }
+    message.success(res.msg);
+
+    // 仅添加操作（mySiteId === 0）走跳转补全；更新操作跳过
+    const isAdd = mySiteId.value === 0
+    if (!isAdd) {
+      return
+    }
+    // 添加成功且返回信息包含「添加成功」，尝试跳转到另一个页面再同步一次
+    if (res.msg && res.msg.includes('添加成功')) {
+      const otherUrl = await getOtherSyncPageUrl()
+      if (otherUrl && !await isOtherSyncPageSame()) {
+        console.log('添加成功，跳转到另一个页面补全同步：', otherUrl)
+        sessionStorage.setItem(RESYNC_JUMP_FLAG, '1')
+        window.location.href = otherUrl
+        return
+      }
+      // 没有另一个页面或两页相同，跳过补全
+      console.log('无另一个同步页面或页面相同，跳过补全同步')
     }
 
   } catch (error) {
@@ -771,6 +848,7 @@ async function init_button() {
       // 可以在这里操作已经渲染的 DOM 元素或执行其他需要在 DOM 渲染完成后执行的逻辑
       console.log('DOM 已更新');
       await syncCookie()
+      await handleResyncAfterSync()
     });
     return;
   }
@@ -782,6 +860,7 @@ async function init_button() {
       // 可以在这里操作已经渲染的 DOM 元素或执行其他需要在 DOM 渲染完成后执行的逻辑
       console.log('DOM 已更新');
       await syncCookie()
+      await handleResyncAfterSync()
     });
     return;
   }
@@ -814,6 +893,23 @@ async function init_button() {
       await get_torrent_id_list()
     });
     return;
+  }
+}
+
+/**
+ * 跨页面补全同步完成后的处理：
+ * 若当前页面是跳转补全过来的，同步成功后关闭当前标签页
+ */
+async function handleResyncAfterSync() {
+  if (!sessionStorage.getItem(RESYNC_JUMP_FLAG)) {
+    return
+  }
+  sessionStorage.removeItem(RESYNC_JUMP_FLAG)
+  console.log('补全同步完成，关闭当前标签页')
+  try {
+    await browser.runtime.sendMessage({ type: 'closeCurrentTab' })
+  } catch (e) {
+    console.warn('关闭当前标签页失败：', e)
   }
 }
 
