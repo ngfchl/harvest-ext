@@ -256,6 +256,29 @@ onMounted(async () => {
     await getUid()
     await init_button()
   }
+
+  // 监听 SPA 路由变化（前后分离站点，如 Next.js），URL 变化后重新检测页面类型
+  let routeChangeTimer: ReturnType<typeof setTimeout> | null = null
+  let lastUrl = location.href
+  const handleRouteChange = () => {
+    if (routeChangeTimer) clearTimeout(routeChangeTimer)
+    routeChangeTimer = setTimeout(async () => {
+      console.log('检测到路由变化，重新初始化：', location.href)
+      await init_button()
+    }, 300)
+  }
+  // popstate/hashchange 作为快速触发
+  window.addEventListener('hashchange', handleRouteChange)
+  window.addEventListener('popstate', handleRouteChange)
+  // 轮询检测 URL 变化（content script 运行在隔离世界，pushState 劫持不可靠）
+  const routePoller = setInterval(() => {
+    const currentUrl = location.href
+    if (currentUrl !== lastUrl) {
+      lastUrl = currentUrl
+      handleRouteChange()
+    }
+  }, 500)
+
   await nextTick(async () => {
     if (document.readyState === 'complete') {
       setTimeout(initPageState, 300)
