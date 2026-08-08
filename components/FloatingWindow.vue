@@ -943,13 +943,13 @@ async function getSiteData() {
   }
   console.log('站点UID：', siteInfo.value.my_uid_rule)
 
-  //获取UID
+  //获取UID，失败不中断同步（部分站点面板仅能拿到 passkey）
   let UserIdRes = await getUid()
   if (!UserIdRes.succeed) {
-    console.error('用户ID解析失败！')
-    return CommonResponse.error(-1, '用户ID解析失败！')
+    console.warn('用户ID解析失败，继续同步其他字段：', UserIdRes.msg)
+  } else {
+    console.log('站点 UID 解析成功：', myUid.value)
   }
-  console.log('站点 UID 解析成功：', myUid.value)
 
   cookie.value = ''
   const localStorageText = serializeLocalStorage()
