@@ -425,16 +425,33 @@ async function go_to_control_page() {
 }
 
 async function getUid() {
-  const node = document.evaluate(siteInfo.value.my_uid_rule, document).iterateNext();
+  let node = document.evaluate(siteInfo.value.my_uid_rule, document).iterateNext();
   console.log('解析UID元素节点', node)
   let href = node?.textContent?.trim();
   console.log('解析 UID 链接', href)
+  // 首次未取到时，等待异步渲染后重试一次
+  if (!href) {
+    await new Promise(r => setTimeout(r, 500));
+    node = document.evaluate(siteInfo.value.my_uid_rule, document).iterateNext();
+    href = node?.textContent?.trim();
+    console.log('重试解析 UID 链接', href)
+  }
   if (!href) {
     console.log('解析 UID 链接出错啦！')
     return CommonResponse.error(-1, '解析 UID 链接出错啦！')
   }
 
   let user_id: string | null = null;
+
+  // 如果直接拿到合法 UID，无需再做 URL/path 解析
+  if (/^[a-zA-Z0-9-]+$/.test(href)) {
+    user_id = href;
+    console.log('直接获取到站点UID：', user_id);
+    myUid.value = user_id
+    localStorage.setItem('myUid', JSON.stringify(myUid.value));
+    return CommonResponse.success(user_id)
+  }
+
   const segments = href
       .split('/')
       .map(s => s.trim())
