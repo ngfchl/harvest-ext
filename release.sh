@@ -1,14 +1,10 @@
 #!/usr/bin/env bash
 # 发布脚本：更新版本号、类型检查、提交、打 tag、push
-# 用法：
-#   ./scripts/release.sh 0.3.6          # 发布指定版本
-#   ./scripts/release.sh patch          # 0.3.5 -> 0.3.6
-#   ./scripts/release.sh minor          # 0.3.5 -> 0.4.0
-#   ./scripts/release.sh major          # 0.3.5 -> 1.0.0
+# 用法：./release.sh <version>（如 0.3.6）
 
 set -euo pipefail
 
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")"
 
 # ─── 颜色 ───
 RED='\033[0;31m'
@@ -21,7 +17,7 @@ warn()  { echo -e "${YELLOW}⚠${NC} $1"; }
 error() { echo -e "${RED}✘${NC} $1"; }
 
 # ─── 前置检查 ───
-if [[ -n $(git status --porcelain --untracked=no) ]]; then
+if [[ -n $(git status --porcelain) ]]; then
     error "工作区有未提交的改动，请先提交或 stash"
     git status --short
     exit 1
@@ -32,7 +28,12 @@ if [[ ! -f key.pem ]]; then
 fi
 
 # ─── 解析参数 ───
-CURRENT_VERSION=$(node -p "require('./package.json').version")
+CURRENT_VERSION=$(node -e "
+    const fs = require('fs');
+    const cfg = fs.readFileSync('wxt.config.ts', 'utf8');
+    const m = cfg.match(/version:\s*'([^']+)'/);
+    console.log(m ? m[1] : '0.0.0');
+")
 NEW_VERSION="${1:-}"
 
 if [[ -z "$NEW_VERSION" ]]; then
@@ -44,8 +45,7 @@ fi
 # 计算新版本号
 if [[ "$NEW_VERSION" == "patch" || "$NEW_VERSION" == "minor" || "$NEW_VERSION" == "major" ]]; then
     NEW_VERSION=$(node -e "
-        const semver = require('./package.json').version;
-        let [ma, mi, pa] = semver.split('.').map(Number);
+        let [ma, mi, pa] = '$CURRENT_VERSION'.split('.').map(Number);
         const t = '$NEW_VERSION';
         if (t === 'major') { ma++; mi = 0; pa = 0; }
         else if (t === 'minor') { mi++; pa = 0; }
@@ -74,16 +74,6 @@ info "发布版本：$NEW_VERSION"
 echo "────────────────────────────────"
 
 # ─── 更新版本号 ───
-# 1. package.json
-node -e "
-    const fs = require('fs');
-    const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-    pkg.version = '$NEW_VERSION';
-    fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
-"
-info "已更新 package.json"
-
-# 2. wxt.config.ts
 node -e "
     const fs = require('fs');
     let cfg = fs.readFileSync('wxt.config.ts', 'utf8');
@@ -98,7 +88,7 @@ npm run compile
 info "类型检查通过"
 
 # ─── 提交并打 tag ───
-git add package.json wxt.config.ts
+git add wxt.config.ts
 git commit -m "release: v$NEW_VERSION"
 git tag -a "v$NEW_VERSION" -m "Release v$NEW_VERSION"
 info "已提交并打 tag：v$NEW_VERSION"
