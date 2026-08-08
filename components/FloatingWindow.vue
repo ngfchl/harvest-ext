@@ -1009,6 +1009,15 @@ async function getSiteData() {
     siteData.email = email;
   }
 
+  // 移除空值字段，避免后端已有数据被清空
+  for (const key of Object.keys(siteData)) {
+    const v = siteData[key]
+    if (v === '' || v === null || v === undefined ||
+        (Array.isArray(v) && v.length === 0)) {
+      delete siteData[key]
+    }
+  }
+
   console.log('最终站点数据:', siteData);
   return CommonResponse.success(siteData)
 }
